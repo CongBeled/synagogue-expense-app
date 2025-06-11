@@ -1,17 +1,14 @@
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
+import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
 
-// Your web app's Firebase configuration
 const firebaseConfig = {
-  apiKey: "AIzaSyCPdI7aP4IhNiRUnYPpGFtwQoRrGqZUXOw",
-  authDomain: "synagogue-expense-app.firebaseapp.com",
-  projectId: "synagogue-expense-app",
-  storageBucket: "synagogue-expense-app.firebasestorage.app",
-  messagingSenderId: "113186930270",
-  appId: "1:113186930270:web:1142f731d0464fd874fecf"
+  apiKey: "your-api-key",
+  authDomain: "your-project.firebaseapp.com",
+  projectId: "your-project-id",
+  storageBucket: "your-project.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "your-app-id"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app);
