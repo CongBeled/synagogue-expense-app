@@ -62,13 +62,13 @@ const SynagogueExpenseApp = () => {
         // Set default expenses if none exist
         if (expensesData.length === 0) {
           const defaultExpenses = [
-            { name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment\nFor full or partial sponsorship click the month and enter the amount of your choosing', isHighPriority: true },
-            { name: 'Electricity', amount: 350, description: 'Monthly electric bill' },
-            { name: 'Cleaning Services', amount: 400, description: 'Professional cleaning twice weekly' },
-            { name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials' },
-            { name: 'Security System', amount: 200, description: 'Monthly security monitoring' },
-            { name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping' },
-            { name: 'Gas', amount: 200, description: 'Monthly gas utility bill' }
+            { name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment\nFor full or partial sponsorship click the month and enter the amount of your choosing', isHighPriority: true, order: 1 },
+            { name: 'Electricity', amount: 350, description: 'Monthly electric bill', isFlexible: true, seasonalAmounts: { winter: 450, spring: 300, summer: 400, fall: 280 }, order: 2 },
+            { name: 'Cleaning Services', amount: 400, description: 'Professional cleaning twice weekly', hasSpecialMonths: true, specialMonths: [0, 6], monthlyAmounts: { 0: 600, 6: 550 }, order: 3 },
+            { name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials', order: 4 },
+            { name: 'Security System', amount: 200, description: 'Monthly security monitoring', order: 5 },
+            { name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping', order: 6 },
+            { name: 'Gas', amount: 200, description: 'Monthly gas utility bill', isFlexible: true, seasonalAmounts: { winter: 300, spring: 150, summer: 120, fall: 180 }, order: 7 }
           ];
           
           for (const expense of defaultExpenses) {
@@ -83,10 +83,12 @@ const SynagogueExpenseApp = () => {
           const newExpensesData = newSnapshot.docs.map(doc => ({
             id: doc.id,
             ...doc.data()
-          }));
+          })).sort((a, b) => (a.order || 999) - (b.order || 999));
           setExpenses(newExpensesData);
         } else {
-          setExpenses(expensesData);
+          // Sort existing expenses by order
+          const sortedExpenses = expensesData.sort((a, b) => (a.order || 999) - (b.order || 999));
+          setExpenses(sortedExpenses);
         }
 
         // Load sponsorships
@@ -102,13 +104,13 @@ const SynagogueExpenseApp = () => {
         console.error('Error loading data:', error);
         // Fallback to default data if Firebase fails
         setExpenses([
-          { id: '1', name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment', isHighPriority: true },
-          { id: '2', name: 'Electricity', amount: 350, description: 'Monthly electric bill' },
-          { id: '3', name: 'Cleaning Services', amount: 400, description: 'Professional cleaning twice weekly' },
-          { id: '4', name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials' },
-          { id: '5', name: 'Security System', amount: 200, description: 'Monthly security monitoring' },
-          { id: '6', name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping' },
-          { id: '7', name: 'Gas', amount: 200, description: 'Monthly gas utility bill' }
+          { id: '1', name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment', isHighPriority: true, order: 1 },
+          { id: '2', name: 'Electricity', amount: 350, description: 'Monthly electric bill', order: 2 },
+          { id: '3', name: 'Cleaning Services', amount: 400, description: 'Professional cleaning twice weekly', order: 3 },
+          { id: '4', name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials', order: 4 },
+          { id: '5', name: 'Security System', amount: 200, description: 'Monthly security monitoring', order: 5 },
+          { id: '6', name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping', order: 6 },
+          { id: '7', name: 'Gas', amount: 200, description: 'Monthly gas utility bill', order: 7 }
         ]);
         setSponsorships([]);
         setLoading(false);
@@ -262,10 +264,11 @@ const SynagogueExpenseApp = () => {
           name: newExpense.name.trim(),
           amount: parseFloat(newExpense.amount),
           description: newExpense.description.trim(),
-          createdAt: new Date()
+          createdAt: new Date(),
+          order: 999 // New expenses go to the end
         };
         
-        setExpenses(prev => [newExpenseObj, ...prev]);
+        setExpenses(prev => [...prev, newExpenseObj].sort((a, b) => (a.order || 999) - (b.order || 999)));
         setNewExpense({ name: '', amount: '', description: '' });
         setNewlyAddedExpenseId(docRef.id);
       } catch (error) {
@@ -333,12 +336,30 @@ const SynagogueExpenseApp = () => {
   };
 
   const sponsorExpense = async () => {
-    if (memberInfo.name?.trim() && selectedSponsorship.expenseId && selectedSponsorship.month !== null && memberInfo.amount) {
-      const sponsorAmount = parseFloat(memberInfo.amount);
-      
-      if (sponsorAmount <= 0) return;
-      
-      try {
+    const validationErrors = getPaymentErrors();
+    
+    if (validationErrors.length > 0) {
+      alert("Please fix the following errors:\n\n" + validationErrors.join("\n"));
+      return;
+    }
+
+    const sponsorAmount = parseFloat(memberInfo.amount);
+    
+    if (sponsorAmount <= 0) {
+      alert("Please enter a valid sponsorship amount.");
+      return;
+    }
+    
+    // Check if amount exceeds remaining balance
+    const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
+    const progress = getMonthProgress(expense, selectedSponsorship.month);
+    
+    if (sponsorAmount > progress.remaining) {
+      alert(`The sponsorship amount (${sponsorAmount.toLocaleString()}) exceeds the remaining amount needed (${progress.remaining.toLocaleString()}) for this month.`);
+      return;
+    }
+
+    try {
         const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
         const transactionId = `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         const transaction = {
@@ -405,10 +426,9 @@ const SynagogueExpenseApp = () => {
         });
       } catch (error) {
         console.error('Error adding sponsorship:', error);
-        alert('Failed to submit sponsorship. Please try again.');
+        alert('Failed to submit sponsorship. Please check your internet connection and try again.');
       }
-    }
-  };
+    };
 
   const removeSponsor = async (sponsorshipId) => {
     try {
@@ -955,6 +975,9 @@ Thank you for your generous support!`}
                             placeholder={memberInfo.cardType === 'amex' ? '1234 567890 12345' : '1234 5678 9012 3456'}
                             maxLength={memberInfo.cardType === 'amex' ? '17' : '19'}
                           />
+                          {memberInfo.cardNumber && memberInfo.cardType && !validateCardNumber(memberInfo.cardNumber, memberInfo.cardType) && (
+                            <p className="text-red-600 text-xs mt-1">Invalid card number</p>
+                          )}
                         </div>
                         
                         <div className="grid grid-cols-2 gap-3">
@@ -973,10 +996,19 @@ Thank you for your generous support!`}
                                   setMemberInfo(prev => ({ ...prev, expiryDate: formattedValue }));
                                 }
                               }}
-                              className="w-full border rounded-lg px-3 py-2"
+                              className={`w-full border rounded-lg px-3 py-2 ${
+                                memberInfo.expiryDate && !validateExpiryDate(memberInfo.expiryDate)
+                                  ? 'border-red-300 bg-red-50'
+                                  : memberInfo.expiryDate && validateExpiryDate(memberInfo.expiryDate)
+                                  ? 'border-green-300 bg-green-50'
+                                  : ''
+                              }`}
                               placeholder="MM/YY"
                               maxLength="5"
                             />
+                            {memberInfo.expiryDate && !validateExpiryDate(memberInfo.expiryDate) && (
+                              <p className="text-red-600 text-xs mt-1">Invalid or expired date</p>
+                            )}
                           </div>
                           
                           <div>
@@ -991,10 +1023,19 @@ Thank you for your generous support!`}
                                   setMemberInfo(prev => ({ ...prev, cvv: value }));
                                 }
                               }}
-                              className="w-full border rounded-lg px-3 py-2"
+                              className={`w-full border rounded-lg px-3 py-2 ${
+                                memberInfo.cvv && memberInfo.cardType && memberInfo.cvv.length !== (memberInfo.cardType === 'amex' ? 4 : 3)
+                                  ? 'border-red-300 bg-red-50'
+                                  : memberInfo.cvv && memberInfo.cardType && memberInfo.cvv.length === (memberInfo.cardType === 'amex' ? 4 : 3)
+                                  ? 'border-green-300 bg-green-50'
+                                  : ''
+                              }`}
                               placeholder={memberInfo.cardType === 'amex' ? '1234' : '123'}
                               maxLength={memberInfo.cardType === 'amex' ? '4' : '3'}
                             />
+                            {memberInfo.cvv && memberInfo.cardType && memberInfo.cvv.length !== (memberInfo.cardType === 'amex' ? 4 : 3) && (
+                              <p className="text-red-600 text-xs mt-1">Invalid CVV length</p>
+                            )}
                           </div>
                         </div>
                         
@@ -1004,9 +1045,18 @@ Thank you for your generous support!`}
                             type="text"
                             value={memberInfo.cardholderName || ''}
                             onChange={(e) => setMemberInfo(prev => ({ ...prev, cardholderName: e.target.value }))}
-                            className="w-full border rounded-lg px-3 py-2"
+                            className={`w-full border rounded-lg px-3 py-2 ${
+                              memberInfo.cardholderName && memberInfo.cardholderName.trim().length < 2
+                                ? 'border-red-300 bg-red-50'
+                                : memberInfo.cardholderName && memberInfo.cardholderName.trim().length >= 2
+                                ? 'border-green-300 bg-green-50'
+                                : ''
+                            }`}
                             placeholder="Name as it appears on card"
                           />
+                          {memberInfo.cardholderName && memberInfo.cardholderName.trim().length < 2 && (
+                            <p className="text-red-600 text-xs mt-1">Name too short</p>
+                          )}
                         </div>
                         
                         <div>
@@ -1015,9 +1065,18 @@ Thank you for your generous support!`}
                             type="text"
                             value={memberInfo.billingAddress || ''}
                             onChange={(e) => setMemberInfo(prev => ({ ...prev, billingAddress: e.target.value }))}
-                            className="w-full border rounded-lg px-3 py-2"
-                            placeholder="Street address"
+                            className={`w-full border rounded-lg px-3 py-2 ${
+                              memberInfo.billingAddress && memberInfo.billingAddress.trim().length < 5
+                                ? 'border-red-300 bg-red-50'
+                                : memberInfo.billingAddress && memberInfo.billingAddress.trim().length >= 5
+                                ? 'border-green-300 bg-green-50'
+                                : ''
+                            }`}
+                            placeholder="123 Main Street"
                           />
+                          {memberInfo.billingAddress && memberInfo.billingAddress.trim().length < 5 && (
+                            <p className="text-red-600 text-xs mt-1">Address too short</p>
+                          )}
                         </div>
                         
                         <div className="grid grid-cols-2 gap-3">
@@ -1027,9 +1086,18 @@ Thank you for your generous support!`}
                               type="text"
                               value={memberInfo.billingCity || ''}
                               onChange={(e) => setMemberInfo(prev => ({ ...prev, billingCity: e.target.value }))}
-                              className="w-full border rounded-lg px-3 py-2"
-                              placeholder="City"
+                              className={`w-full border rounded-lg px-3 py-2 ${
+                                memberInfo.billingCity && memberInfo.billingCity.trim().length < 2
+                                  ? 'border-red-300 bg-red-50'
+                                  : memberInfo.billingCity && memberInfo.billingCity.trim().length >= 2
+                                  ? 'border-green-300 bg-green-50'
+                                  : ''
+                              }`}
+                              placeholder="Brooklyn"
                             />
+                            {memberInfo.billingCity && memberInfo.billingCity.trim().length < 2 && (
+                              <p className="text-red-600 text-xs mt-1">City too short</p>
+                            )}
                           </div>
                           
                           <div>
@@ -1038,9 +1106,18 @@ Thank you for your generous support!`}
                               type="text"
                               value={memberInfo.billingState || ''}
                               onChange={(e) => setMemberInfo(prev => ({ ...prev, billingState: e.target.value }))}
-                              className="w-full border rounded-lg px-3 py-2"
-                              placeholder="State"
+                              className={`w-full border rounded-lg px-3 py-2 ${
+                                memberInfo.billingState && memberInfo.billingState.trim().length < 2
+                                  ? 'border-red-300 bg-red-50'
+                                  : memberInfo.billingState && memberInfo.billingState.trim().length >= 2
+                                  ? 'border-green-300 bg-green-50'
+                                  : ''
+                              }`}
+                              placeholder="NY"
                             />
+                            {memberInfo.billingState && memberInfo.billingState.trim().length < 2 && (
+                              <p className="text-red-600 text-xs mt-1">State too short</p>
+                            )}
                           </div>
                         </div>
                         
@@ -1050,9 +1127,18 @@ Thank you for your generous support!`}
                             type="text"
                             value={memberInfo.billingZip || ''}
                             onChange={(e) => setMemberInfo(prev => ({ ...prev, billingZip: e.target.value }))}
-                            className="w-full border rounded-lg px-3 py-2"
-                            placeholder="ZIP Code"
+                            className={`w-full border rounded-lg px-3 py-2 ${
+                              memberInfo.billingZip && !validateZipCode(memberInfo.billingZip)
+                                ? 'border-red-300 bg-red-50'
+                                : memberInfo.billingZip && validateZipCode(memberInfo.billingZip)
+                                ? 'border-green-300 bg-green-50'
+                                : ''
+                            }`}
+                            placeholder="11219"
                           />
+                          {memberInfo.billingZip && !validateZipCode(memberInfo.billingZip) && (
+                            <p className="text-red-600 text-xs mt-1">Invalid ZIP code format</p>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1074,12 +1160,7 @@ Thank you for your generous support!`}
                   <div className="flex flex-col sm:flex-row gap-3 mt-6">
                     <button
                       onClick={sponsorExpense}
-                      disabled={!memberInfo.name?.trim() || !memberInfo.amount || parseFloat(memberInfo.amount) <= 0 || 
-                               !memberInfo.cardNumber?.replace(/\s/g, '') || !memberInfo.expiryDate || 
-                               !memberInfo.cvv || !memberInfo.cardholderName?.trim() ||
-                               !memberInfo.billingAddress?.trim() || !memberInfo.billingCity?.trim() ||
-                               !memberInfo.billingState?.trim() || !memberInfo.billingZip?.trim() ||
-                               !validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)}
+                      disabled={getPaymentErrors().length > 0}
                       className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
                     >
                       Process Payment & Confirm Sponsorship
