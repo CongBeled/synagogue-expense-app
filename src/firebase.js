@@ -2,12 +2,12 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
-  apiKey: "your-api-key",
-  authDomain: "your-project.firebaseapp.com",
-  projectId: "your-project-id",
-  storageBucket: "your-project.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "your-app-id"
+  apiKey: "AIzaSyCPdI7aP4IhNiRUnYPpGFtwQoRrGqZUXOw",
+  authDomain: "synagogue-expense-app.firebaseapp.com",
+  projectId: "synagogue-expense-app",
+  storageBucket: "synagogue-expense-app.firebasestorage.app",
+  messagingSenderId: "113186930270",
+  appId: "1:113186930270:web:1142f731d0464fd874fecf"
 };
 
 const app = initializeApp(firebaseConfig);
