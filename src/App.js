@@ -716,7 +716,7 @@ const SynagogueExpenseApp = () => {
                       )}
                       <div className="flex justify-between">
                         <span className="text-gray-600">Recurring:</span>
-                        <span>{lastTransaction.recurring ? 'Yes (5 years)' : 'No'}</span>
+                        <span>{lastTransaction.recurring ? 'Yes' : 'No'}</span>
                       </div>
                     </div>
                   </div>
@@ -770,7 +770,7 @@ Expense: ${lastTransaction.expenseName}
 Month: ${lastTransaction.monthName} ${lastTransaction.year}
 ${lastTransaction.dedication ? `Dedication: ${lastTransaction.dedication}` : ''}
 ${lastTransaction.message ? `Message: ${lastTransaction.message}` : ''}
-Recurring: ${lastTransaction.recurring ? 'Yes (5 years)' : 'No'}
+Recurring: ${lastTransaction.recurring ? 'Yes' : 'No'}
 
 This donation is tax-deductible to the full extent allowed by law.
 
@@ -1008,6 +1008,52 @@ Thank you for your generous support!`}
                             placeholder="Name as it appears on card"
                           />
                         </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Billing Address *</label>
+                          <input
+                            type="text"
+                            value={memberInfo.billingAddress || ''}
+                            onChange={(e) => setMemberInfo(prev => ({ ...prev, billingAddress: e.target.value }))}
+                            className="w-full border rounded-lg px-3 py-2"
+                            placeholder="Street address"
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">City *</label>
+                            <input
+                              type="text"
+                              value={memberInfo.billingCity || ''}
+                              onChange={(e) => setMemberInfo(prev => ({ ...prev, billingCity: e.target.value }))}
+                              className="w-full border rounded-lg px-3 py-2"
+                              placeholder="City"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium mb-1">State *</label>
+                            <input
+                              type="text"
+                              value={memberInfo.billingState || ''}
+                              onChange={(e) => setMemberInfo(prev => ({ ...prev, billingState: e.target.value }))}
+                              className="w-full border rounded-lg px-3 py-2"
+                              placeholder="State"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium mb-1">ZIP Code *</label>
+                          <input
+                            type="text"
+                            value={memberInfo.billingZip || ''}
+                            onChange={(e) => setMemberInfo(prev => ({ ...prev, billingZip: e.target.value }))}
+                            className="w-full border rounded-lg px-3 py-2"
+                            placeholder="ZIP Code"
+                          />
+                        </div>
                       </div>
                     </div>
                     
@@ -1031,6 +1077,8 @@ Thank you for your generous support!`}
                       disabled={!memberInfo.name?.trim() || !memberInfo.amount || parseFloat(memberInfo.amount) <= 0 || 
                                !memberInfo.cardNumber?.replace(/\s/g, '') || !memberInfo.expiryDate || 
                                !memberInfo.cvv || !memberInfo.cardholderName?.trim() ||
+                               !memberInfo.billingAddress?.trim() || !memberInfo.billingCity?.trim() ||
+                               !memberInfo.billingState?.trim() || !memberInfo.billingZip?.trim() ||
                                !validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)}
                       className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
                     >
@@ -1230,8 +1278,8 @@ Thank you for your generous support!`}
                               <div className="space-y-1 mt-1">
                                 <div className="text-xs font-bold">${progress.total}</div>
                                 {sponsors.slice(0, 2).map((sponsor, idx) => (
-                                  <div key={`${sponsor.id}-${idx}`} className="truncate text-xs font-medium">
-                                    {sponsor.memberName}
+                                  <div key={`${sponsor.id}-${idx}`} className="truncate text-xs font-medium" title={`${sponsor.memberName} - ${sponsor.amount}${sponsor.dedication ? ` - ${sponsor.dedication}` : ''}`}>
+                                    {sponsor.memberName} (${sponsor.amount})
                                   </div>
                                 ))}
                                 {sponsors.length > 2 && (
@@ -1244,16 +1292,16 @@ Thank you for your generous support!`}
                             <button
                               key={sponsor.id}
                               onClick={() => {
-                                if (confirm(`Remove ${sponsor.memberName}'s sponsorship?`)) {
+                                if (confirm(`Remove ${sponsor.memberName}'s ${sponsor.amount} sponsorship?${sponsor.dedication ? `\nDedication: ${sponsor.dedication}` : ''}`)) {
                                   removeSponsor(sponsor.id);
                                 }
                               }}
-                              className={`absolute bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs hover:bg-red-600 ${
+                              className={`absolute bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 font-bold ${
                                 idx === 0 ? '-top-1 -right-1' : 
                                 idx === 1 ? '-top-1 -left-1' :
                                 '-bottom-1 -right-1'
                               }`}
-                              title={`Remove ${sponsor.memberName}'s sponsorship`}
+                              title={`Remove ${sponsor.memberName}'s ${sponsor.amount} sponsorship${sponsor.dedication ? ` - ${sponsor.dedication}` : ''}`}
                               style={{ display: idx < 3 ? 'flex' : 'none' }}
                             >
                               ×
