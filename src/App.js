@@ -901,6 +901,114 @@ Thank you for your generous support!`}
                         className="w-full border rounded-lg px-3 py-2 h-20 resize-none"
                         placeholder="Add a personal message or note..."
                       />
+                      <p className="text-xs text-gray-500 mt-1">This will be visible when hovering over your sponsorship</p>
+                    </div>
+
+                    <div className="border-t pt-4 mt-4">
+                      <h4 className="text-sm font-semibold text-gray-800 mb-3">Payment Information</h4>
+                      
+                      <div className="grid grid-cols-1 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Payment Method</label>
+                          <div className="grid grid-cols-4 gap-2 mb-3">
+                            {[
+                              { type: 'visa', name: 'Visa', color: 'bg-blue-600' },
+                              { type: 'mastercard', name: 'Mastercard', color: 'bg-red-600' },
+                              { type: 'amex', name: 'Amex', color: 'bg-green-600' },
+                              { type: 'discover', name: 'Discover', color: 'bg-orange-600' }
+                            ].map(card => (
+                              <div
+                                key={card.type}
+                                className={`p-2 rounded text-center text-xs font-medium text-white ${card.color} ${
+                                  memberInfo.cardType === card.type ? 'ring-2 ring-offset-2 ring-gray-400' : 'opacity-60'
+                                }`}
+                              >
+                                {card.name}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Card Number *</label>
+                          <input
+                            type="text"
+                            value={memberInfo.cardNumber || ''}
+                            onChange={(e) => {
+                              const cardType = getCardType(e.target.value);
+                              const formattedValue = formatCardNumber(e.target.value, cardType);
+                              setMemberInfo(prev => ({ 
+                                ...prev, 
+                                cardNumber: formattedValue,
+                                cardType: cardType
+                              }));
+                            }}
+                            className={`w-full border rounded-lg px-3 py-2 ${
+                              memberInfo.cardNumber && memberInfo.cardType && 
+                              !validateCardNumber(memberInfo.cardNumber, memberInfo.cardType) 
+                                ? 'border-red-300 bg-red-50' 
+                                : memberInfo.cardNumber && memberInfo.cardType && 
+                                  validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)
+                                ? 'border-green-300 bg-green-50'
+                                : ''
+                            }`}
+                            placeholder={memberInfo.cardType === 'amex' ? '1234 567890 12345' : '1234 5678 9012 3456'}
+                            maxLength={memberInfo.cardType === 'amex' ? '17' : '19'}
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Expiry Date *</label>
+                            <input
+                              type="text"
+                              value={memberInfo.expiryDate || ''}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, '');
+                                let formattedValue = value;
+                                if (value.length >= 2) {
+                                  formattedValue = value.slice(0, 2) + '/' + value.slice(2, 4);
+                                }
+                                if (formattedValue.length <= 5) {
+                                  setMemberInfo(prev => ({ ...prev, expiryDate: formattedValue }));
+                                }
+                              }}
+                              className="w-full border rounded-lg px-3 py-2"
+                              placeholder="MM/YY"
+                              maxLength="5"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium mb-1">CVV *</label>
+                            <input
+                              type="text"
+                              value={memberInfo.cvv || ''}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, '');
+                                const maxLength = memberInfo.cardType === 'amex' ? 4 : 3;
+                                if (value.length <= maxLength) {
+                                  setMemberInfo(prev => ({ ...prev, cvv: value }));
+                                }
+                              }}
+                              className="w-full border rounded-lg px-3 py-2"
+                              placeholder={memberInfo.cardType === 'amex' ? '1234' : '123'}
+                              maxLength={memberInfo.cardType === 'amex' ? '4' : '3'}
+                            />
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Cardholder Name *</label>
+                          <input
+                            type="text"
+                            value={memberInfo.cardholderName || ''}
+                            onChange={(e) => setMemberInfo(prev => ({ ...prev, cardholderName: e.target.value }))}
+                            className="w-full border rounded-lg px-3 py-2"
+                            placeholder="Name as it appears on card"
+                          />
+                        </div>
+                      </div>
                     </div>
                     
                     <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
@@ -912,7 +1020,7 @@ Thank you for your generous support!`}
                         className="w-4 h-4"
                       />
                       <label htmlFor="recurring" className="text-sm font-medium text-blue-800">
-                        Make this an ongoing sponsorship (5 years)
+                        Make this an ongoing sponsorship
                       </label>
                     </div>
                   </div>
@@ -920,10 +1028,13 @@ Thank you for your generous support!`}
                   <div className="flex flex-col sm:flex-row gap-3 mt-6">
                     <button
                       onClick={sponsorExpense}
-                      disabled={!memberInfo.name?.trim() || !memberInfo.amount || parseFloat(memberInfo.amount) <= 0}
+                      disabled={!memberInfo.name?.trim() || !memberInfo.amount || parseFloat(memberInfo.amount) <= 0 || 
+                               !memberInfo.cardNumber?.replace(/\s/g, '') || !memberInfo.expiryDate || 
+                               !memberInfo.cvv || !memberInfo.cardholderName?.trim() ||
+                               !validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)}
                       className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
                     >
-                      Confirm Sponsorship
+                      Process Payment & Confirm Sponsorship
                     </button>
                     <button
                       onClick={() => {
