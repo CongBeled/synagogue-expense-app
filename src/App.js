@@ -1,55 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar, DollarSign, User, Settings, Plus, Trash2, Edit3, Check, X, Snowflake, Sun, Flower, Leaf } from 'lucide-react';
+import { db } from './firebase';
+import { 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  getDocs, 
+  onSnapshot,
+  query,
+  orderBy 
+} from 'firebase/firestore';
 
 const SynagogueExpenseApp = () => {
   const [currentView, setCurrentView] = useState('member');
   const [selectedYear, setSelectedYear] = useState(5785);
-  const [expenses, setExpenses] = useState([
-    { id: 1, name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment\nFor full or partial sponsorship click the month and enter the amount of your choosing', isHighPriority: true },
-    { 
-      id: 2, 
-      name: 'Electricity', 
-      amount: 350, 
-      description: 'Monthly electric bill',
-      isFlexible: true,
-      seasonalAmounts: {
-        winter: 450,
-        spring: 300,
-        summer: 400,
-        fall: 280
-      }
-    },
-    { 
-      id: 3, 
-      name: 'Cleaning Services', 
-      amount: 400, 
-      description: 'Professional cleaning twice weekly',
-      hasSpecialMonths: true,
-      specialMonths: [0, 6],
-      monthlyAmounts: {
-        0: 600,
-        6: 550
-      }
-    },
-    { id: 4, name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials' },
-    { id: 5, name: 'Security System', amount: 200, description: 'Monthly security monitoring' },
-    { id: 6, name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping' },
-    { 
-      id: 7, 
-      name: 'Gas', 
-      amount: 200, 
-      description: 'Monthly gas utility bill',
-      isFlexible: true,
-      seasonalAmounts: {
-        winter: 300,
-        spring: 150,
-        summer: 120,
-        fall: 180
-      }
-    }
-  ]);
-  
-  const [sponsorships, setSponsorships] = useState({});
+  const [expenses, setExpenses] = useState([]);
+  const [sponsorships, setSponsorships] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [newExpense, setNewExpense] = useState({ name: '', amount: '', description: '' });
   const [editingExpense, setEditingExpense] = useState(null);
   const [editingValues, setEditingValues] = useState({ name: '', amount: '', description: '' });
@@ -78,9 +47,91 @@ const SynagogueExpenseApp = () => {
     fall: Leaf
   };
 
+  // Load data from Firebase on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Load expenses
+        const expensesQuery = query(collection(db, 'expenses'), orderBy('createdAt', 'desc'));
+        const expensesSnapshot = await getDocs(expensesQuery);
+        const expensesData = expensesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // Set default expenses if none exist
+        if (expensesData.length === 0) {
+          const defaultExpenses = [
+            { name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment\nFor full or partial sponsorship click the month and enter the amount of your choosing', isHighPriority: true },
+            { name: 'Electricity', amount: 350, description: 'Monthly electric bill' },
+            { name: 'Cleaning Services', amount: 400, description: 'Professional cleaning twice weekly' },
+            { name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials' },
+            { name: 'Security System', amount: 200, description: 'Monthly security monitoring' },
+            { name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping' },
+            { name: 'Gas', amount: 200, description: 'Monthly gas utility bill' }
+          ];
+          
+          for (const expense of defaultExpenses) {
+            await addDoc(collection(db, 'expenses'), {
+              ...expense,
+              createdAt: new Date()
+            });
+          }
+          
+          // Reload expenses after adding defaults
+          const newSnapshot = await getDocs(expensesQuery);
+          const newExpensesData = newSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setExpenses(newExpensesData);
+        } else {
+          setExpenses(expensesData);
+        }
+
+        // Load sponsorships
+        const sponsorshipsSnapshot = await getDocs(collection(db, 'sponsorships'));
+        const sponsorshipsData = sponsorshipsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setSponsorships(sponsorshipsData);
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        // Fallback to default data if Firebase fails
+        setExpenses([
+          { id: '1', name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment', isHighPriority: true },
+          { id: '2', name: 'Electricity', amount: 350, description: 'Monthly electric bill' },
+          { id: '3', name: 'Cleaning Services', amount: 400, description: 'Professional cleaning twice weekly' },
+          { id: '4', name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials' },
+          { id: '5', name: 'Security System', amount: 200, description: 'Monthly security monitoring' },
+          { id: '6', name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping' },
+          { id: '7', name: 'Gas', amount: 200, description: 'Monthly gas utility bill' }
+        ]);
+        setSponsorships([]);
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Real-time listener for sponsorships
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'sponsorships'), (snapshot) => {
+      const sponsorshipsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setSponsorships(sponsorshipsData);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const getCurrentHebrewMonth = () => {
-    // June 2025 corresponds to Sivan/Tammuz 5785
-    // More accurate mapping would be around Sivan 5785
     return 8; // Sivan for June 2025
   };
 
@@ -162,13 +213,12 @@ const SynagogueExpenseApp = () => {
     return expense.amount;
   };
 
-  const getSponsorshipKey = (expenseId, monthIndex) => {
-    return `${expenseId}-${monthIndex}-${selectedYear}`;
-  };
-
   const getSponsor = (expenseId, monthIndex) => {
-    const sponsorshipArray = sponsorships[getSponsorshipKey(expenseId, monthIndex)];
-    return sponsorshipArray || [];
+    return sponsorships.filter(s => 
+      s.expenseId === expenseId && 
+      s.month === monthIndex && 
+      s.year === selectedYear
+    );
   };
 
   const getMonthTotal = (expenseId, monthIndex) => {
@@ -197,48 +247,75 @@ const SynagogueExpenseApp = () => {
     return null;
   };
 
-  const addExpense = () => {
+  const addExpense = async () => {
     if (newExpense.name && newExpense.amount && parseFloat(newExpense.amount) > 0) {
-      const expenseId = Date.now() + Math.floor(Math.random() * 1000);
-      const expense = {
-        id: expenseId,
-        name: newExpense.name.trim(),
-        amount: parseFloat(newExpense.amount),
-        description: newExpense.description.trim()
-      };
-      setExpenses(prev => [...prev, expense]);
-      setNewExpense({ name: '', amount: '', description: '' });
-      setNewlyAddedExpenseId(expenseId);
+      try {
+        const docRef = await addDoc(collection(db, 'expenses'), {
+          name: newExpense.name.trim(),
+          amount: parseFloat(newExpense.amount),
+          description: newExpense.description.trim(),
+          createdAt: new Date()
+        });
+        
+        const newExpenseObj = {
+          id: docRef.id,
+          name: newExpense.name.trim(),
+          amount: parseFloat(newExpense.amount),
+          description: newExpense.description.trim(),
+          createdAt: new Date()
+        };
+        
+        setExpenses(prev => [newExpenseObj, ...prev]);
+        setNewExpense({ name: '', amount: '', description: '' });
+        setNewlyAddedExpenseId(docRef.id);
+      } catch (error) {
+        console.error('Error adding expense:', error);
+        alert('Failed to add expense. Please try again.');
+      }
     }
   };
 
-  const deleteExpense = (id) => {
-    if (newlyAddedExpenseId === id) {
-      setNewlyAddedExpenseId(null);
+  const deleteExpense = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'expenses', id));
+      setExpenses(prev => prev.filter(exp => exp.id !== id));
+      
+      // Remove associated sponsorships
+      const relatedSponsorships = sponsorships.filter(s => s.expenseId === id);
+      for (const sponsorship of relatedSponsorships) {
+        await deleteDoc(doc(db, 'sponsorships', sponsorship.id));
+      }
+      
+      if (newlyAddedExpenseId === id) {
+        setNewlyAddedExpenseId(null);
+      }
+      
+      if (expenseRefs.current[id]) {
+        delete expenseRefs.current[id];
+      }
+    } catch (error) {
+      console.error('Error deleting expense:', error);
+      alert('Failed to delete expense. Please try again.');
     }
-    
-    setExpenses(prev => prev.filter(exp => exp.id !== id));
-    setSponsorships(prev => {
-      const newSponsorships = { ...prev };
-      Object.keys(newSponsorships).forEach(key => {
-        if (key.startsWith(`${id}-`)) {
-          delete newSponsorships[key];
-        }
+  };
+
+  const updateExpense = async (id, updatedExpense) => {
+    try {
+      await updateDoc(doc(db, 'expenses', id), {
+        name: updatedExpense.name,
+        amount: parseFloat(updatedExpense.amount),
+        description: updatedExpense.description
       });
-      return newSponsorships;
-    });
-    
-    if (expenseRefs.current[id]) {
-      delete expenseRefs.current[id];
+      
+      setExpenses(prev => prev.map(exp => 
+        exp.id === id ? { ...exp, ...updatedExpense, amount: parseFloat(updatedExpense.amount) } : exp
+      ));
+      setEditingExpense(null);
+      setEditingValues({ name: '', amount: '', description: '' });
+    } catch (error) {
+      console.error('Error updating expense:', error);
+      alert('Failed to update expense. Please try again.');
     }
-  };
-
-  const updateExpense = (id, updatedExpense) => {
-    setExpenses(prev => prev.map(exp => 
-      exp.id === id ? { ...exp, ...updatedExpense, amount: parseFloat(updatedExpense.amount) } : exp
-    ));
-    setEditingExpense(null);
-    setEditingValues({ name: '', amount: '', description: '' });
   };
 
   const startEditing = (expense) => {
@@ -255,103 +332,91 @@ const SynagogueExpenseApp = () => {
     setEditingValues({ name: '', amount: '', description: '' });
   };
 
-  const sponsorExpense = () => {
+  const sponsorExpense = async () => {
     if (memberInfo.name?.trim() && selectedSponsorship.expenseId && selectedSponsorship.month !== null && memberInfo.amount) {
       const sponsorAmount = parseFloat(memberInfo.amount);
       
       if (sponsorAmount <= 0) return;
       
-      const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
-      const transactionId = `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
-      const transaction = {
-        id: transactionId,
-        date: new Date().toISOString(),
-        memberName: memberInfo.name.trim(),
-        memberEmail: memberInfo.email?.trim() || '',
-        memberPhone: memberInfo.phone?.trim() || '',
-        amount: sponsorAmount,
-        expenseName: expense.name,
-        monthName: months[selectedSponsorship.month],
-        year: selectedYear,
-        dedication: memberInfo.dedication?.trim() || '',
-        message: memberInfo.message?.trim() || '',
-        recurring: memberInfo.recurring,
-        cardType: memberInfo.cardType,
-        lastFourDigits: memberInfo.cardNumber.replace(/\s/g, '').slice(-4)
-      };
-      
-      setLastTransaction(transaction);
-      
-      setSponsorships(prev => {
-        const newSponsorships = { ...prev };
+      try {
+        const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
+        const transactionId = `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const transaction = {
+          id: transactionId,
+          date: new Date().toISOString(),
+          memberName: memberInfo.name.trim(),
+          memberEmail: memberInfo.email?.trim() || '',
+          memberPhone: memberInfo.phone?.trim() || '',
+          amount: sponsorAmount,
+          expenseName: expense.name,
+          monthName: months[selectedSponsorship.month],
+          year: selectedYear,
+          dedication: memberInfo.dedication?.trim() || '',
+          message: memberInfo.message?.trim() || '',
+          recurring: memberInfo.recurring,
+          cardType: memberInfo.cardType,
+          lastFourDigits: memberInfo.cardNumber.replace(/\s/g, '').slice(-4)
+        };
+        
+        setLastTransaction(transaction);
         
         if (memberInfo.recurring) {
-          [5784, 5785, 5786, 5787, 5788].forEach(year => {
-            const key = `${selectedSponsorship.expenseId}-${selectedSponsorship.month}-${year}`;
-            if (!newSponsorships[key]) {
-              newSponsorships[key] = [];
-            }
-            newSponsorships[key].push({
-              id: `${Date.now()}-${Math.floor(Math.random() * 10000)}-${year}`,
+          // Add sponsorship for multiple years
+          for (const year of [5784, 5785, 5786, 5787, 5788]) {
+            await addDoc(collection(db, 'sponsorships'), {
+              expenseId: selectedSponsorship.expenseId,
               memberName: memberInfo.name.trim(),
               memberEmail: memberInfo.email?.trim() || '',
               memberPhone: memberInfo.phone?.trim() || '',
-              expenseId: selectedSponsorship.expenseId,
               month: selectedSponsorship.month,
               year: year,
               amount: sponsorAmount,
               recurring: true,
               dedication: memberInfo.dedication?.trim() || '',
-              message: memberInfo.message?.trim() || ''
+              message: memberInfo.message?.trim() || '',
+              createdAt: new Date()
             });
-          });
-        } else {
-          const key = `${selectedSponsorship.expenseId}-${selectedSponsorship.month}-${selectedYear}`;
-          if (!newSponsorships[key]) {
-            newSponsorships[key] = [];
           }
-          newSponsorships[key].push({
-            id: `${Date.now()}-${Math.floor(Math.random() * 10000)}-${selectedYear}`,
+        } else {
+          // Add sponsorship for selected year only
+          await addDoc(collection(db, 'sponsorships'), {
+            expenseId: selectedSponsorship.expenseId,
             memberName: memberInfo.name.trim(),
             memberEmail: memberInfo.email?.trim() || '',
             memberPhone: memberInfo.phone?.trim() || '',
-            expenseId: selectedSponsorship.expenseId,
             month: selectedSponsorship.month,
             year: selectedYear,
             amount: sponsorAmount,
             recurring: false,
             dedication: memberInfo.dedication?.trim() || '',
-            message: memberInfo.message?.trim() || ''
+            message: memberInfo.message?.trim() || '',
+            createdAt: new Date()
           });
         }
         
-        return newSponsorships;
-      });
-      
-      setShowSponsorForm(false);
-      setShowPaymentConfirmation(true);
-      setSelectedSponsorship({ expenseId: null, month: null });
-      
-      setMemberInfo({ 
-        name: '', email: '', phone: '', dedication: '', message: '', recurring: true, amount: '',
-        cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
-        billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment: false
-      });
+        setShowSponsorForm(false);
+        setShowPaymentConfirmation(true);
+        setSelectedSponsorship({ expenseId: null, month: null });
+        
+        setMemberInfo({ 
+          name: '', email: '', phone: '', dedication: '', message: '', recurring: true, amount: '',
+          cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
+          billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment: false
+        });
+      } catch (error) {
+        console.error('Error adding sponsorship:', error);
+        alert('Failed to submit sponsorship. Please try again.');
+      }
     }
   };
 
-  const removeSponsor = (expenseId, monthIndex, sponsorId) => {
-    const key = getSponsorshipKey(expenseId, monthIndex);
-    setSponsorships(prev => {
-      const newSponsorships = { ...prev };
-      if (newSponsorships[key]) {
-        newSponsorships[key] = newSponsorships[key].filter(sponsor => sponsor.id !== sponsorId);
-        if (newSponsorships[key].length === 0) {
-          delete newSponsorships[key];
-        }
-      }
-      return newSponsorships;
-    });
+  const removeSponsor = async (sponsorshipId) => {
+    try {
+      await deleteDoc(doc(db, 'sponsorships', sponsorshipId));
+    } catch (error) {
+      console.error('Error removing sponsorship:', error);
+      alert('Failed to remove sponsorship. Please try again.');
+    }
   };
 
   const getTotalAnnualExpenses = () => {
@@ -365,15 +430,9 @@ const SynagogueExpenseApp = () => {
   };
 
   const getTotalSponsored = () => {
-    return Object.keys(sponsorships)
-      .filter(key => key.endsWith(`-${selectedYear}`))
-      .reduce((total, key) => {
-        const sponsorshipArray = sponsorships[key];
-        if (Array.isArray(sponsorshipArray)) {
-          return total + sponsorshipArray.reduce((sum, sponsorship) => sum + sponsorship.amount, 0);
-        }
-        return total;
-      }, 0);
+    return sponsorships
+      .filter(s => s.year === selectedYear)
+      .reduce((total, sponsorship) => total + sponsorship.amount, 0);
   };
 
   useEffect(() => {
@@ -393,6 +452,17 @@ const SynagogueExpenseApp = () => {
       return () => clearTimeout(timeoutId);
     }
   }, [newlyAddedExpenseId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading sponsorship data...</p>
+        </div>
+      </div>
+    );
+  }
 
   const currentMonthData = getCurrentMonthTotals();
   const isFullySponsored = currentMonthData.percentage >= 100;
@@ -532,29 +602,15 @@ const SynagogueExpenseApp = () => {
                         {expense.isHighPriority && <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full font-medium">Priority</span>}
                       </div>
                       <div className="mt-2">
-                        {expense.description.split('\n').map((line, index) => (
+                        {expense.description && expense.description.split('\n').map((line, index) => (
                           <p key={index} className={`text-sm ${
                             index === 0 ? 'text-gray-600' : 'text-blue-700 font-semibold'
                           }`}>{line}</p>
                         ))}
                       </div>
                       <div className="text-xl font-bold text-green-600 mt-2">
-                        {expense.isFlexible || expense.hasSpecialMonths ? 'Variable amounts' : `$${expense.amount.toLocaleString()}/month`}
+                        ${expense.amount.toLocaleString()}/month
                       </div>
-                      {expense.isFlexible && expense.seasonalAmounts && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {Object.entries(expense.seasonalAmounts).map(([season, amount]) => {
-                            const IconComponent = seasonalIcons[season];
-                            return (
-                              <div key={season} className="flex items-center gap-1 text-xs sm:text-sm bg-gray-100 px-2 py-1 rounded">
-                                <IconComponent size={12} />
-                                <span className="capitalize">{season}:</span>
-                                <span className="font-semibold">${amount}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
                     </div>
                   </div>
                   
@@ -604,7 +660,7 @@ const SynagogueExpenseApp = () => {
                                 </div>
                                 <div className="text-xs space-y-0.5">
                                   {sponsors.slice(0, 2).map((sponsor, idx) => (
-                                    <div key={`${sponsor.id}-${idx}`} className="truncate" title={`${sponsor.memberName} - $${sponsor.amount}${sponsor.dedication ? ` - ${sponsor.dedication}` : ''}`}>
+                                    <div key={`${sponsor.id}-${idx}`} className="truncate" title={`${sponsor.memberName} - ${sponsor.amount}${sponsor.dedication ? ` - ${sponsor.dedication}` : ''}`}>
                                       {sponsor.memberName} (${sponsor.amount})
                                     </div>
                                   ))}
@@ -631,7 +687,7 @@ const SynagogueExpenseApp = () => {
                       <Check className="w-8 h-8 text-green-600" />
                     </div>
                     <h3 className="text-xl font-bold text-green-800 mb-2">Payment Submitted!</h3>
-                    <p className="text-gray-600">Your sponsorship has been confirmed.</p>
+                    <p className="text-gray-600">Your sponsorship has been confirmed and saved to our database.</p>
                   </div>
                   
                   <div className="bg-gray-50 rounded-lg p-4 mb-6">
@@ -649,8 +705,8 @@ const SynagogueExpenseApp = () => {
                         <span>{lastTransaction.monthName} {lastTransaction.year}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Card:</span>
-                        <span className="capitalize">{lastTransaction.cardType} ****{lastTransaction.lastFourDigits}</span>
+                        <span className="text-gray-600">Amount:</span>
+                        <span className="font-bold">${lastTransaction.amount.toLocaleString()}</span>
                       </div>
                       {lastTransaction.dedication && (
                         <div className="flex justify-between">
@@ -660,7 +716,7 @@ const SynagogueExpenseApp = () => {
                       )}
                       <div className="flex justify-between">
                         <span className="text-gray-600">Recurring:</span>
-                        <span>{lastTransaction.recurring ? 'Yes' : 'No'}</span>
+                        <span>{lastTransaction.recurring ? 'Yes (5 years)' : 'No'}</span>
                       </div>
                     </div>
                   </div>
@@ -714,7 +770,7 @@ Expense: ${lastTransaction.expenseName}
 Month: ${lastTransaction.monthName} ${lastTransaction.year}
 ${lastTransaction.dedication ? `Dedication: ${lastTransaction.dedication}` : ''}
 ${lastTransaction.message ? `Message: ${lastTransaction.message}` : ''}
-Recurring: ${lastTransaction.recurring ? 'Yes' : 'No'}
+Recurring: ${lastTransaction.recurring ? 'Yes (5 years)' : 'No'}
 
 This donation is tax-deductible to the full extent allowed by law.
 
@@ -734,7 +790,7 @@ Thank you for your generous support!`}
                   </div>
                   
                   <p className="text-sm text-gray-600 mt-3 text-center">
-                    Click in the text area above to select all text, then copy (Ctrl+C or Cmd+C) and paste into a text file
+                    Click in the text area above to select all text, then copy and save as needed
                   </p>
                 </div>
               </div>
@@ -751,21 +807,11 @@ Thank you for your generous support!`}
                     {(() => {
                       const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
                       const progress = getMonthProgress(expense, selectedSponsorship.month);
-                      const isSpecialMonth = expense.hasSpecialMonths && expense.specialMonths && 
-                                           expense.specialMonths.includes(selectedSponsorship.month);
                       return (
                         <div>
-                          <div className="flex items-center gap-2">
-                            {getMonthIcon(expense, selectedSponsorship.month)}
-                            <p className="text-gray-600">
-                              Monthly cost: ${progress.expenseAmount.toLocaleString()}
-                            </p>
-                          </div>
-                          {isSpecialMonth && (
-                            <p className="text-orange-600 text-sm mt-1">
-                              This is a $YT month with special costs
-                            </p>
-                          )}
+                          <p className="text-gray-600">
+                            Monthly cost: ${progress.expenseAmount.toLocaleString()}
+                          </p>
                           {progress.total > 0 && (
                             <div className="mt-2">
                               <p className="text-sm text-gray-600">
@@ -855,114 +901,6 @@ Thank you for your generous support!`}
                         className="w-full border rounded-lg px-3 py-2 h-20 resize-none"
                         placeholder="Add a personal message or note..."
                       />
-                      <p className="text-xs text-gray-500 mt-1">This will be visible when hovering over your sponsorship</p>
-                    </div>
-
-                    <div className="border-t pt-4 mt-4">
-                      <h4 className="text-sm font-semibold text-gray-800 mb-3">Payment Information</h4>
-                      
-                      <div className="grid grid-cols-1 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Payment Method</label>
-                          <div className="grid grid-cols-4 gap-2 mb-3">
-                            {[
-                              { type: 'visa', name: 'Visa', color: 'bg-blue-600' },
-                              { type: 'mastercard', name: 'Mastercard', color: 'bg-red-600' },
-                              { type: 'amex', name: 'Amex', color: 'bg-green-600' },
-                              { type: 'discover', name: 'Discover', color: 'bg-orange-600' }
-                            ].map(card => (
-                              <div
-                                key={card.type}
-                                className={`p-2 rounded text-center text-xs font-medium text-white ${card.color} ${
-                                  memberInfo.cardType === card.type ? 'ring-2 ring-offset-2 ring-gray-400' : 'opacity-60'
-                                }`}
-                              >
-                                {card.name}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Card Number *</label>
-                          <input
-                            type="text"
-                            value={memberInfo.cardNumber || ''}
-                            onChange={(e) => {
-                              const cardType = getCardType(e.target.value);
-                              const formattedValue = formatCardNumber(e.target.value, cardType);
-                              setMemberInfo(prev => ({ 
-                                ...prev, 
-                                cardNumber: formattedValue,
-                                cardType: cardType
-                              }));
-                            }}
-                            className={`w-full border rounded-lg px-3 py-2 ${
-                              memberInfo.cardNumber && memberInfo.cardType && 
-                              !validateCardNumber(memberInfo.cardNumber, memberInfo.cardType) 
-                                ? 'border-red-300 bg-red-50' 
-                                : memberInfo.cardNumber && memberInfo.cardType && 
-                                  validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)
-                                ? 'border-green-300 bg-green-50'
-                                : ''
-                            }`}
-                            placeholder={memberInfo.cardType === 'amex' ? '1234 567890 12345' : '1234 5678 9012 3456'}
-                            maxLength={memberInfo.cardType === 'amex' ? '17' : '19'}
-                          />
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-sm font-medium mb-1">Expiry Date *</label>
-                            <input
-                              type="text"
-                              value={memberInfo.expiryDate || ''}
-                              onChange={(e) => {
-                                const value = e.target.value.replace(/\D/g, '');
-                                let formattedValue = value;
-                                if (value.length >= 2) {
-                                  formattedValue = value.slice(0, 2) + '/' + value.slice(2, 4);
-                                }
-                                if (formattedValue.length <= 5) {
-                                  setMemberInfo(prev => ({ ...prev, expiryDate: formattedValue }));
-                                }
-                              }}
-                              className="w-full border rounded-lg px-3 py-2"
-                              placeholder="MM/YY"
-                              maxLength="5"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium mb-1">CVV *</label>
-                            <input
-                              type="text"
-                              value={memberInfo.cvv || ''}
-                              onChange={(e) => {
-                                const value = e.target.value.replace(/\D/g, '');
-                                const maxLength = memberInfo.cardType === 'amex' ? 4 : 3;
-                                if (value.length <= maxLength) {
-                                  setMemberInfo(prev => ({ ...prev, cvv: value }));
-                                }
-                              }}
-                              className="w-full border rounded-lg px-3 py-2"
-                              placeholder={memberInfo.cardType === 'amex' ? '1234' : '123'}
-                              maxLength={memberInfo.cardType === 'amex' ? '4' : '3'}
-                            />
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-sm font-medium mb-1">Cardholder Name *</label>
-                          <input
-                            type="text"
-                            value={memberInfo.cardholderName || ''}
-                            onChange={(e) => setMemberInfo(prev => ({ ...prev, cardholderName: e.target.value }))}
-                            className="w-full border rounded-lg px-3 py-2"
-                            placeholder="Name as it appears on card"
-                          />
-                        </div>
-                      </div>
                     </div>
                     
                     <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
@@ -974,7 +912,7 @@ Thank you for your generous support!`}
                         className="w-4 h-4"
                       />
                       <label htmlFor="recurring" className="text-sm font-medium text-blue-800">
-                        Make this an ongoing sponsorship
+                        Make this an ongoing sponsorship (5 years)
                       </label>
                     </div>
                   </div>
@@ -982,13 +920,10 @@ Thank you for your generous support!`}
                   <div className="flex flex-col sm:flex-row gap-3 mt-6">
                     <button
                       onClick={sponsorExpense}
-                      disabled={!memberInfo.name?.trim() || !memberInfo.amount || parseFloat(memberInfo.amount) <= 0 || 
-                               !memberInfo.cardNumber?.replace(/\s/g, '') || !memberInfo.expiryDate || 
-                               !memberInfo.cvv || !memberInfo.cardholderName?.trim() ||
-                               !validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)}
+                      disabled={!memberInfo.name?.trim() || !memberInfo.amount || parseFloat(memberInfo.amount) <= 0}
                       className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
                     >
-                      Process Payment & Confirm Sponsorship
+                      Confirm Sponsorship
                     </button>
                     <button
                       onClick={() => {
@@ -1013,7 +948,7 @@ Thank you for your generous support!`}
             <div className="bg-purple-50 p-6 rounded-lg border-l-4 border-purple-500">
               <h2 className="text-xl font-bold text-purple-800 mb-2">Administrator Dashboard</h2>
               <p className="text-purple-700">
-                Manage expenses and view sponsorship status.
+                Manage expenses and view sponsorship status. All data is automatically saved to Firebase.
               </p>
             </div>
 
@@ -1028,7 +963,7 @@ Thank you for your generous support!`}
               </div>
               <div className="bg-white p-4 rounded-lg border">
                 <div className="text-2xl font-bold text-orange-600">
-                  {Math.round((getTotalSponsored() / getTotalAnnualExpenses()) * 100)}%
+                  {getTotalAnnualExpenses() > 0 ? Math.round((getTotalSponsored() / getTotalAnnualExpenses()) * 100) : 0}%
                 </div>
                 <div className="text-sm text-gray-600">Sponsored Coverage</div>
               </div>
@@ -1149,7 +1084,11 @@ Thank you for your generous support!`}
                           <Edit3 size={16} />
                         </button>
                         <button
-                          onClick={() => deleteExpense(expense.id)}
+                          onClick={() => {
+                            if (confirm('Are you sure you want to delete this expense? This will also remove all associated sponsorships.')) {
+                              deleteExpense(expense.id);
+                            }
+                          }}
                           className="text-red-600 hover:text-red-800 p-1"
                         >
                           <Trash2 size={16} />
@@ -1171,7 +1110,6 @@ Thank you for your generous support!`}
                               : 'bg-gray-100 text-gray-600 border border-gray-200'
                           }`}>
                             <div className="flex flex-col items-center gap-1 mb-2">
-                              {getMonthIcon(expense, index)}
                               <span className="text-xs font-medium">{month}</span>
                             </div>
                             <div className="text-xs font-bold text-gray-600">
@@ -1194,7 +1132,11 @@ Thank you for your generous support!`}
                           {isSponsored && sponsors.map((sponsor, idx) => (
                             <button
                               key={sponsor.id}
-                              onClick={() => removeSponsor(expense.id, index, sponsor.id)}
+                              onClick={() => {
+                                if (confirm(`Remove ${sponsor.memberName}'s sponsorship?`)) {
+                                  removeSponsor(sponsor.id);
+                                }
+                              }}
                               className={`absolute bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs hover:bg-red-600 ${
                                 idx === 0 ? '-top-1 -right-1' : 
                                 idx === 1 ? '-top-1 -left-1' :
