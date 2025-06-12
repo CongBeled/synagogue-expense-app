@@ -19,108 +19,98 @@ const SynagogueExpenseApp = () => {
   const [expenses, setExpenses] = useState([]);
   const [sponsorships, setSponsorships] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [confirmationData, setConfirmationData] = useState(null);
-  const [selectedExpense, setSelectedExpense] = useState(null);
-  const [selectedMonth, setSelectedMonth] = useState(null);
-  const [isEditing, setIsEditing] = useState(false);
+  const [newExpense, setNewExpense] = useState({ name: '', amount: '', description: '' });
   const [editingExpense, setEditingExpense] = useState(null);
-  const [showAddExpense, setShowAddExpense] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const [formData, setFormData] = useState({
-    name: '',
-    email: '',
-    phone: '',
-    amount: '',
-    dedication: '',
-    message: '',
-    recurring: false,
-    cardNumber: '',
-    expiryDate: '',
-    cvv: '',
-    cardName: '',
-    billingAddress: '',
-    city: '',
-    state: '',
-    zipCode: ''
+  const [editingValues, setEditingValues] = useState({ name: '', amount: '', description: '' });
+  const [memberInfo, setMemberInfo] = useState({ 
+    name: '', email: '', phone: '', dedication: '', message: '', recurring: true, amount: '',
+    cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
+    billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment: false
   });
-
-  const [newExpense, setNewExpense] = useState({
-    name: '',
-    amount: '',
-    description: '',
-    isHighPriority: false
-  });
+  const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
+  const [lastTransaction, setLastTransaction] = useState(null);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showSponsorForm, setShowSponsorForm] = useState(false);
+  const [selectedSponsorship, setSelectedSponsorship] = useState({ expenseId: null, month: null });
+  const [newlyAddedExpenseId, setNewlyAddedExpenseId] = useState(null);
+  const expenseRefs = useRef({});
 
   const months = [
     'Tishrei', 'Cheshvan', 'Kislev', 'Tevet', 'Shevat', 'Adar',
     'Nissan', 'Iyar', 'Sivan', 'Tammuz', 'Av', 'Elul'
   ];
 
-  const seasonIcons = {
-    'Tishrei': Leaf, 'Cheshvan': Leaf, 'Kislev': Snowflake,
-    'Tevet': Snowflake, 'Shevat': Snowflake, 'Adar': Flower,
-    'Nissan': Flower, 'Iyar': Flower, 'Sivan': Sun,
-    'Tammuz': Sun, 'Av': Sun, 'Elul': Leaf
+  const seasonalIcons = {
+    winter: Snowflake,
+    spring: Flower,
+    summer: Sun,
+    fall: Leaf
   };
 
-  const printRef = useRef();
-
-  // Firebase data loading
+  // Load data from Firebase on component mount
   useEffect(() => {
     const loadData = async () => {
       try {
         // Load expenses
-        const expensesRef = collection(db, 'expenses');
-        const expensesQuery = query(expensesRef, orderBy('order', 'asc'));
+        const expensesQuery = query(collection(db, 'expenses'), orderBy('createdAt', 'desc'));
         const expensesSnapshot = await getDocs(expensesQuery);
+        const expensesData = expensesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
         
-        if (expensesSnapshot.empty) {
-          // Create default expenses
+        // Set default expenses if none exist
+        if (expensesData.length === 0) {
           const defaultExpenses = [
-            { name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment for the synagogue building', isHighPriority: true, order: 1 },
-            { name: 'Electricity Bill', amount: 600, description: 'Monthly electricity for lighting, heating, and cooling', isHighPriority: false, order: 2 },
-            { name: 'Cleaning Services', amount: 400, description: 'Professional cleaning service for the sanctuary and social hall', isHighPriority: false, order: 3 },
-            { name: 'Coffee & Refreshments', amount: 300, description: 'Weekly coffee and light refreshments after services', isHighPriority: false, order: 4 },
-            { name: 'Security System', amount: 200, description: 'Monthly security monitoring and maintenance', isHighPriority: true, order: 5 },
-            { name: 'Ner Tamid', amount: 175, description: 'Monthly garden and grounds maintenance', isHighPriority: false, order: 6 },
-            { name: 'Gas Bill', amount: 400, description: 'Monthly natural gas for heating and kitchen', isHighPriority: false, order: 7 }
+            { name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment\nFor full or partial sponsorship click the month and enter the amount of your choosing', isHighPriority: true },
+            { name: 'Electricity', amount: 350, description: 'Monthly electric bill' },
+            { name: 'Cleaning Services', amount: 400, description: 'Professional cleaning twice weekly' },
+            { name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials' },
+            { name: 'Security System', amount: 200, description: 'Monthly security monitoring' },
+            { name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping' },
+            { name: 'Gas', amount: 200, description: 'Monthly gas utility bill' }
           ];
           
           for (const expense of defaultExpenses) {
-            await addDoc(collection(db, 'expenses'), expense);
+            await addDoc(collection(db, 'expenses'), {
+              ...expense,
+              createdAt: new Date()
+            });
           }
+          
+          // Reload expenses after adding defaults
+          const newSnapshot = await getDocs(expensesQuery);
+          const newExpensesData = newSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setExpenses(newExpensesData);
+        } else {
+          setExpenses(expensesData);
         }
 
-        // Real-time listener for expenses
-        const unsubscribeExpenses = onSnapshot(expensesQuery, (snapshot) => {
-          const expensesData = [];
-          snapshot.forEach((doc) => {
-            expensesData.push({ id: doc.id, ...doc.data() });
-          });
-          setExpenses(expensesData);
-        });
-
-        // Real-time listener for sponsorships
-        const sponsorshipsRef = collection(db, 'sponsorships');
-        const unsubscribeSponsorships = onSnapshot(sponsorshipsRef, (snapshot) => {
-          const sponsorshipsData = [];
-          snapshot.forEach((doc) => {
-            sponsorshipsData.push({ id: doc.id, ...doc.data() });
-          });
-          setSponsorships(sponsorshipsData);
-        });
-
+        // Load sponsorships
+        const sponsorshipsSnapshot = await getDocs(collection(db, 'sponsorships'));
+        const sponsorshipsData = sponsorshipsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setSponsorships(sponsorshipsData);
+        
         setLoading(false);
-
-        return () => {
-          unsubscribeExpenses();
-          unsubscribeSponsorships();
-        };
       } catch (error) {
         console.error('Error loading data:', error);
+        // Fallback to default data if Firebase fails
+        setExpenses([
+          { id: '1', name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment', isHighPriority: true },
+          { id: '2', name: 'Electricity', amount: 350, description: 'Monthly electric bill' },
+          { id: '3', name: 'Cleaning Services', amount: 400, description: 'Professional cleaning twice weekly' },
+          { id: '4', name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials' },
+          { id: '5', name: 'Security System', amount: 200, description: 'Monthly security monitoring' },
+          { id: '6', name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping' },
+          { id: '7', name: 'Gas', amount: 200, description: 'Monthly gas utility bill' }
+        ]);
+        setSponsorships([]);
         setLoading(false);
       }
     };
@@ -128,1137 +118,1046 @@ const SynagogueExpenseApp = () => {
     loadData();
   }, []);
 
-  // Validation functions
-  const validateCardNumber = (cardNumber) => {
-    const cleaned = cardNumber.replace(/\s/g, '');
-    const patterns = {
-      visa: /^4[0-9]{12}(?:[0-9]{3})?$/,
-      mastercard: /^5[1-5][0-9]{14}$/,
-      amex: /^3[47][0-9]{13}$/,
-      discover: /^6(?:011|5[0-9]{2})[0-9]{12}$/
+  // Real-time listener for sponsorships
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'sponsorships'), (snapshot) => {
+      const sponsorshipsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setSponsorships(sponsorshipsData);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const getCurrentHebrewMonth = () => {
+    return 8; // Sivan for June 2025
+  };
+
+  const getCurrentMonthTotals = () => {
+    const currentMonth = getCurrentHebrewMonth();
+    let totalExpenseForMonth = 0;
+    let totalSponsoredForMonth = 0;
+    
+    expenses.forEach(expense => {
+      const monthExpenseAmount = getExpenseAmountForMonth(expense, currentMonth);
+      const monthProgress = getMonthProgress(expense, currentMonth);
+      
+      totalExpenseForMonth += monthExpenseAmount;
+      totalSponsoredForMonth += monthProgress.total;
+    });
+    
+    const percentage = totalExpenseForMonth > 0 ? (totalSponsoredForMonth / totalExpenseForMonth) * 100 : 0;
+    
+    return {
+      currentMonthName: months[currentMonth],
+      totalExpenseForMonth,
+      totalSponsoredForMonth,
+      remainingForMonth: Math.max(totalExpenseForMonth - totalSponsoredForMonth, 0),
+      percentage: Math.min(percentage, 100)
     };
-    
-    return Object.values(patterns).some(pattern => pattern.test(cleaned));
   };
 
-  const validateExpiryDate = (expiry) => {
-    const [month, year] = expiry.split('/');
-    if (!month || !year) return false;
-    
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear() % 100;
-    const currentMonth = currentDate.getMonth() + 1;
-    
-    const expMonth = parseInt(month);
-    const expYear = parseInt(year);
-    
-    if (expMonth < 1 || expMonth > 12) return false;
-    if (expYear < currentYear || (expYear === currentYear && expMonth < currentMonth)) return false;
-    
-    return true;
+  const getCardType = (number) => {
+    const cleaned = number.replace(/\s/g, '');
+    if (/^4/.test(cleaned)) return 'visa';
+    if (/^5[1-5]/.test(cleaned)) return 'mastercard';
+    if (/^3[47]/.test(cleaned)) return 'amex';
+    if (/^6(?:011|5)/.test(cleaned)) return 'discover';
+    return '';
   };
 
-  const validateZipCode = (zip) => {
-    return /^\d{5}(-\d{4})?$/.test(zip);
+  const validateCardNumber = (number, type) => {
+    const cleaned = number.replace(/\s/g, '');
+    switch (type) {
+      case 'visa':
+        return /^4\d{15}$/.test(cleaned);
+      case 'mastercard':
+        return /^5[1-5]\d{14}$/.test(cleaned);
+      case 'amex':
+        return /^3[47]\d{13}$/.test(cleaned);
+      case 'discover':
+        return /^6(?:011|5\d{2})\d{12}$/.test(cleaned);
+      default:
+        return false;
+    }
   };
 
-  const validateForm = () => {
-    const newErrors = {};
-    
-    if (!formData.name || formData.name.length < 2) {
-      newErrors.name = 'Name must be at least 2 characters';
-    }
-    
-    if (!formData.email || !/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
-    }
-    
-    if (!formData.phone || formData.phone.length < 10) {
-      newErrors.phone = 'Please enter a valid phone number';
-    }
-    
-    if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      newErrors.amount = 'Please enter a valid amount';
-    }
-    
-    if (!validateCardNumber(formData.cardNumber)) {
-      newErrors.cardNumber = 'Please enter a valid card number';
-    }
-    
-    if (!validateExpiryDate(formData.expiryDate)) {
-      newErrors.expiryDate = 'Invalid or expired date';
-    }
-    
-    if (!formData.cvv || (formData.cvv.length < 3 || formData.cvv.length > 4)) {
-      newErrors.cvv = 'Please enter a valid CVV';
-    }
-    
-    if (!formData.cardName || formData.cardName.length < 2) {
-      newErrors.cardName = 'Please enter the name on card';
-    }
-    
-    if (!formData.billingAddress || formData.billingAddress.length < 5) {
-      newErrors.billingAddress = 'Please enter a valid address';
-    }
-    
-    if (!formData.city || formData.city.length < 2) {
-      newErrors.city = 'Please enter a valid city';
-    }
-    
-    if (!formData.state || formData.state.length < 2) {
-      newErrors.state = 'Please enter a valid state';
-    }
-    
-    if (!validateZipCode(formData.zipCode)) {
-      newErrors.zipCode = 'Please enter a valid ZIP code';
-    }
-
-    // Check if amount exceeds remaining balance
-    if (selectedExpense && selectedMonth !== null) {
-      const sponsorshipsForMonth = sponsorships.filter(s => 
-        s.expenseId === selectedExpense.id && 
-        s.monthIndex === selectedMonth && 
-        s.year === selectedYear
-      );
-      const totalSponsored = sponsorshipsForMonth.reduce((sum, s) => sum + s.amount, 0);
-      const remaining = selectedExpense.amount - totalSponsored;
-      
-      if (parseFloat(formData.amount) > remaining) {
-        newErrors.amount = `Amount cannot exceed remaining balance of $${remaining}`;
-      }
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const getFieldClassName = (fieldName) => {
-    const hasError = errors[fieldName];
-    const hasValue = formData[fieldName];
-    
-    let baseClass = "w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ";
-    
-    if (hasError) {
-      baseClass += "border-red-500 bg-red-50";
-    } else if (hasValue) {
-      baseClass += "border-green-500 bg-green-50";
+  const formatCardNumber = (value, type) => {
+    const cleaned = value.replace(/\s/g, '').replace(/\D/g, '');
+    if (type === 'amex') {
+      return cleaned.replace(/(\d{4})(\d{6})(\d{5})/, '$1 $2 $3').substr(0, 17);
     } else {
-      baseClass += "border-gray-300";
-    }
-    
-    return baseClass;
-  };
-
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
-    
-    // Clear error when user starts typing
-    if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: '' }));
+      return cleaned.replace(/(\d{4})(?=\d)/g, '$1 ').substr(0, 19);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
-    
-    setIsSubmitting(true);
-    
-    try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Save sponsorship to Firebase
-      const sponsorshipData = {
-        expenseId: selectedExpense.id,
-        expenseName: selectedExpense.name,
-        memberName: formData.name,
-        memberEmail: formData.email,
-        memberPhone: formData.phone,
-        amount: parseFloat(formData.amount),
-        monthIndex: selectedMonth,
-        year: selectedYear,
-        dedication: formData.dedication,
-        message: formData.message,
-        recurring: formData.recurring,
-        createdAt: new Date().toISOString()
-      };
-      
-      await addDoc(collection(db, 'sponsorships'), sponsorshipData);
-      
-      setConfirmationData({
-        ...sponsorshipData,
-        month: months[selectedMonth]
-      });
-      setShowConfirmation(true);
-      setSelectedExpense(null);
-      setSelectedMonth(null);
-      setFormData({
-        name: '', email: '', phone: '', amount: '', dedication: '', message: '', recurring: false,
-        cardNumber: '', expiryDate: '', cvv: '', cardName: '', billingAddress: '', city: '', state: '', zipCode: ''
-      });
-    } catch (error) {
-      console.error('Error processing payment:', error);
-      alert('There was an error processing your payment. Please try again.');
-    }
-    
-    setIsSubmitting(false);
+  const getSeasonForMonth = (monthIndex) => {
+    if (monthIndex >= 0 && monthIndex <= 2) return 'fall';
+    if (monthIndex >= 3 && monthIndex <= 5) return 'winter';
+    if (monthIndex >= 6 && monthIndex <= 8) return 'spring';
+    return 'summer';
   };
 
-  const handleAddExpense = async (e) => {
-    e.preventDefault();
-    try {
-      const maxOrder = expenses.length > 0 ? Math.max(...expenses.map(e => e.order || 0)) : 0;
-      const expenseData = {
-        ...newExpense,
-        amount: parseFloat(newExpense.amount),
-        order: maxOrder + 1
-      };
-      
-      await addDoc(collection(db, 'expenses'), expenseData);
-      
-      setNewExpense({ name: '', amount: '', description: '', isHighPriority: false });
-      setShowAddExpense(false);
-    } catch (error) {
-      console.error('Error adding expense:', error);
-      alert('Error adding expense. Please try again.');
+  const getExpenseAmountForMonth = (expense, monthIndex) => {
+    if (expense.monthlyAmounts && expense.monthlyAmounts[monthIndex]) {
+      return expense.monthlyAmounts[monthIndex];
     }
-  };
-
-  const handleUpdateExpense = async (e) => {
-    e.preventDefault();
-    try {
-      const expenseRef = doc(db, 'expenses', editingExpense.id);
-      await updateDoc(expenseRef, {
-        name: editingExpense.name,
-        amount: parseFloat(editingExpense.amount),
-        description: editingExpense.description,
-        isHighPriority: editingExpense.isHighPriority
-      });
-      
-      setIsEditing(false);
-      setEditingExpense(null);
-    } catch (error) {
-      console.error('Error updating expense:', error);
-      alert('Error updating expense. Please try again.');
-    }
-  };
-
-  const handleDeleteExpense = async (expenseId) => {
-    if (window.confirm('Are you sure you want to delete this expense?')) {
-      try {
-        await deleteDoc(doc(db, 'expenses', expenseId));
-      } catch (error) {
-        console.error('Error deleting expense:', error);
-        alert('Error deleting expense. Please try again.');
-      }
-    }
-  };
-
-  const handleRemoveSponsorship = async (sponsorship) => {
-    const confirmMessage = `Remove ${sponsorship.memberName}'s $${sponsorship.amount} sponsorship?${sponsorship.dedication ? `\nDedication: ${sponsorship.dedication}` : ''}`;
     
-    if (window.confirm(confirmMessage)) {
-      try {
-        await deleteDoc(doc(db, 'sponsorships', sponsorship.id));
-      } catch (error) {
-        console.error('Error removing sponsorship:', error);
-        alert('Error removing sponsorship. Please try again.');
-      }
+    if (expense.isFlexible && expense.seasonalAmounts) {
+      const season = getSeasonForMonth(monthIndex);
+      return expense.seasonalAmounts[season] || expense.amount;
     }
+    
+    return expense.amount;
   };
 
-  const getSponsorshipsForExpenseAndMonth = (expenseId, monthIndex) => {
+  const getSponsor = (expenseId, monthIndex) => {
     return sponsorships.filter(s => 
       s.expenseId === expenseId && 
-      s.monthIndex === monthIndex && 
+      s.month === monthIndex && 
       s.year === selectedYear
     );
   };
 
-  const getTotalSponsoredForExpenseAndMonth = (expenseId, monthIndex) => {
-    const monthSponsorships = getSponsorshipsForExpenseAndMonth(expenseId, monthIndex);
-    return monthSponsorships.reduce((sum, s) => sum + s.amount, 0);
+  const getMonthTotal = (expenseId, monthIndex) => {
+    const sponsors = getSponsor(expenseId, monthIndex);
+    return sponsors.reduce((total, sponsor) => total + sponsor.amount, 0);
   };
 
-  const getMonthlyData = () => {
-    const monthlyData = [];
+  const getMonthProgress = (expense, monthIndex) => {
+    const total = getMonthTotal(expense.id, monthIndex);
+    const expenseAmount = getExpenseAmountForMonth(expense, monthIndex);
+    const percentage = Math.min((total / expenseAmount) * 100, 100);
+    return { total, percentage, remaining: Math.max(expenseAmount - total, 0), expenseAmount };
+  };
+
+  const getMonthIcon = (expense, monthIndex) => {
+    if (expense.hasSpecialMonths && expense.specialMonths && expense.specialMonths.includes(monthIndex)) {
+      return <span className="text-orange-600 font-bold text-xs">$YT</span>;
+    }
     
-    for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
-      const monthExpenses = expenses.map(expense => {
-        const sponsored = getTotalSponsoredForExpenseAndMonth(expense.id, monthIndex);
-        const remaining = expense.amount - sponsored;
-        const percentage = expense.amount > 0 ? (sponsored / expense.amount) * 100 : 0;
+    if (expense.isFlexible) {
+      const season = getSeasonForMonth(monthIndex);
+      const IconComponent = seasonalIcons[season];
+      return <IconComponent size={12} />;
+    }
+    
+    return null;
+  };
+
+  const addExpense = async () => {
+    if (newExpense.name && newExpense.amount && parseFloat(newExpense.amount) > 0) {
+      try {
+        const docRef = await addDoc(collection(db, 'expenses'), {
+          name: newExpense.name.trim(),
+          amount: parseFloat(newExpense.amount),
+          description: newExpense.description.trim(),
+          createdAt: new Date()
+        });
         
-        return {
-          ...expense,
-          sponsored,
-          remaining,
-          percentage
+        const newExpenseObj = {
+          id: docRef.id,
+          name: newExpense.name.trim(),
+          amount: parseFloat(newExpense.amount),
+          description: newExpense.description.trim(),
+          createdAt: new Date()
         };
+        
+        setExpenses(prev => [newExpenseObj, ...prev]);
+        setNewExpense({ name: '', amount: '', description: '' });
+        setNewlyAddedExpenseId(docRef.id);
+      } catch (error) {
+        console.error('Error adding expense:', error);
+        alert('Failed to add expense. Please try again.');
+      }
+    }
+  };
+
+  const deleteExpense = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'expenses', id));
+      setExpenses(prev => prev.filter(exp => exp.id !== id));
+      
+      // Remove associated sponsorships
+      const relatedSponsorships = sponsorships.filter(s => s.expenseId === id);
+      for (const sponsorship of relatedSponsorships) {
+        await deleteDoc(doc(db, 'sponsorships', sponsorship.id));
+      }
+      
+      if (newlyAddedExpenseId === id) {
+        setNewlyAddedExpenseId(null);
+      }
+      
+      if (expenseRefs.current[id]) {
+        delete expenseRefs.current[id];
+      }
+    } catch (error) {
+      console.error('Error deleting expense:', error);
+      alert('Failed to delete expense. Please try again.');
+    }
+  };
+
+  const updateExpense = async (id, updatedExpense) => {
+    try {
+      await updateDoc(doc(db, 'expenses', id), {
+        name: updatedExpense.name,
+        amount: parseFloat(updatedExpense.amount),
+        description: updatedExpense.description
       });
       
-      const totalBudget = expenses.reduce((sum, e) => sum + e.amount, 0);
-      const totalSponsored = monthExpenses.reduce((sum, e) => sum + e.sponsored, 0);
-      const totalRemaining = totalBudget - totalSponsored;
-      const overallPercentage = totalBudget > 0 ? (totalSponsored / totalBudget) * 100 : 0;
+      setExpenses(prev => prev.map(exp => 
+        exp.id === id ? { ...exp, ...updatedExpense, amount: parseFloat(updatedExpense.amount) } : exp
+      ));
+      setEditingExpense(null);
+      setEditingValues({ name: '', amount: '', description: '' });
+    } catch (error) {
+      console.error('Error updating expense:', error);
+      alert('Failed to update expense. Please try again.');
+    }
+  };
+
+  const startEditing = (expense) => {
+    setEditingExpense(expense.id);
+    setEditingValues({
+      name: expense.name,
+      amount: expense.amount.toString(),
+      description: expense.description
+    });
+  };
+
+  const cancelEditing = () => {
+    setEditingExpense(null);
+    setEditingValues({ name: '', amount: '', description: '' });
+  };
+
+  const sponsorExpense = async () => {
+    if (memberInfo.name?.trim() && selectedSponsorship.expenseId && selectedSponsorship.month !== null && memberInfo.amount) {
+      const sponsorAmount = parseFloat(memberInfo.amount);
       
-      monthlyData.push({
-        month: months[monthIndex],
-        monthIndex,
-        expenses: monthExpenses,
-        totalBudget,
-        totalSponsored,
-        totalRemaining,
-        overallPercentage
-      });
+      if (sponsorAmount <= 0) return;
+      
+      try {
+        const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
+        const transactionId = `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const transaction = {
+          id: transactionId,
+          date: new Date().toISOString(),
+          memberName: memberInfo.name.trim(),
+          memberEmail: memberInfo.email?.trim() || '',
+          memberPhone: memberInfo.phone?.trim() || '',
+          amount: sponsorAmount,
+          expenseName: expense.name,
+          monthName: months[selectedSponsorship.month],
+          year: selectedYear,
+          dedication: memberInfo.dedication?.trim() || '',
+          message: memberInfo.message?.trim() || '',
+          recurring: memberInfo.recurring,
+          cardType: memberInfo.cardType,
+          lastFourDigits: memberInfo.cardNumber.replace(/\s/g, '').slice(-4)
+        };
+        
+        setLastTransaction(transaction);
+        
+        if (memberInfo.recurring) {
+          // Add sponsorship for multiple years
+          for (const year of [5784, 5785, 5786, 5787, 5788]) {
+            await addDoc(collection(db, 'sponsorships'), {
+              expenseId: selectedSponsorship.expenseId,
+              memberName: memberInfo.name.trim(),
+              memberEmail: memberInfo.email?.trim() || '',
+              memberPhone: memberInfo.phone?.trim() || '',
+              month: selectedSponsorship.month,
+              year: year,
+              amount: sponsorAmount,
+              recurring: true,
+              dedication: memberInfo.dedication?.trim() || '',
+              message: memberInfo.message?.trim() || '',
+              createdAt: new Date()
+            });
+          }
+        } else {
+          // Add sponsorship for selected year only
+          await addDoc(collection(db, 'sponsorships'), {
+            expenseId: selectedSponsorship.expenseId,
+            memberName: memberInfo.name.trim(),
+            memberEmail: memberInfo.email?.trim() || '',
+            memberPhone: memberInfo.phone?.trim() || '',
+            month: selectedSponsorship.month,
+            year: selectedYear,
+            amount: sponsorAmount,
+            recurring: false,
+            dedication: memberInfo.dedication?.trim() || '',
+            message: memberInfo.message?.trim() || '',
+            createdAt: new Date()
+          });
+        }
+        
+        setShowSponsorForm(false);
+        setShowPaymentConfirmation(true);
+        setSelectedSponsorship({ expenseId: null, month: null });
+        
+        setMemberInfo({ 
+          name: '', email: '', phone: '', dedication: '', message: '', recurring: true, amount: '',
+          cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
+          billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment: false
+        });
+      } catch (error) {
+        console.error('Error adding sponsorship:', error);
+        alert('Failed to submit sponsorship. Please try again.');
+      }
     }
-    
-    return monthlyData;
   };
 
-  const getCurrentMonthData = () => {
-    if (selectedMonth === null) return null;
-    const monthlyData = getMonthlyData();
-    return monthlyData[selectedMonth];
-  };
-
-  const formatCardNumber = (value) => {
-    const cleaned = value.replace(/\s/g, '');
-    const match = cleaned.match(/\d{4}/g);
-    return match ? match.join(' ').substr(0, 19) : cleaned.substr(0, 16);
-  };
-
-  const formatExpiryDate = (value) => {
-    const cleaned = value.replace(/\D/g, '');
-    if (cleaned.length >= 2) {
-      return cleaned.substring(0, 2) + '/' + cleaned.substring(2, 4);
+  const removeSponsor = async (sponsorshipId) => {
+    try {
+      await deleteDoc(doc(db, 'sponsorships', sponsorshipId));
+    } catch (error) {
+      console.error('Error removing sponsorship:', error);
+      alert('Failed to remove sponsorship. Please try again.');
     }
-    return cleaned;
   };
 
-  const printReceipt = () => {
-    const printContent = printRef.current;
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-      <html>
-        <head>
-          <title>Tax Receipt</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 20px; }
-            .receipt { max-width: 600px; margin: 0 auto; }
-            .header { text-align: center; border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 20px; }
-            .content { line-height: 1.6; }
-            .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ccc; font-size: 12px; color: #666; }
-          </style>
-        </head>
-        <body>
-          ${printContent.innerHTML}
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+  const getTotalAnnualExpenses = () => {
+    return expenses.reduce((total, expense) => {
+      const yearTotal = months.reduce((yearSum, month, index) => {
+        const monthAmount = getExpenseAmountForMonth(expense, index);
+        return yearSum + monthAmount;
+      }, 0);
+      return total + yearTotal;
+    }, 0);
   };
+
+  const getTotalSponsored = () => {
+    return sponsorships
+      .filter(s => s.year === selectedYear)
+      .reduce((total, sponsorship) => total + sponsorship.amount, 0);
+  };
+
+  useEffect(() => {
+    if (newlyAddedExpenseId && expenseRefs.current[newlyAddedExpenseId]) {
+      const timeoutId = setTimeout(() => {
+        const element = expenseRefs.current[newlyAddedExpenseId];
+        if (element) {
+          element.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          });
+        }
+        const clearId = setTimeout(() => setNewlyAddedExpenseId(null), 1000);
+        return () => clearTimeout(clearId);
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [newlyAddedExpenseId]);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading sponsorship data...</p>
         </div>
       </div>
     );
   }
 
+  const currentMonthData = getCurrentMonthTotals();
+  const isFullySponsored = currentMonthData.percentage >= 100;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">Beled Expense Sponsorship</h1>
-          <p className="text-lg text-gray-600">Hebrew Year {selectedYear}</p>
-          
-          <div className="flex justify-center gap-4 mt-6">
-            <button
-              onClick={() => setCurrentView('member')}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                currentView === 'member' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <User className="inline-block w-4 h-4 mr-2" />
-              Member View
-            </button>
-            <button
-              onClick={() => setCurrentView('admin')}
-              className={`px-6 py-2 rounded-lg font-medium transition-colors ${
-                currentView === 'admin' 
-                  ? 'bg-blue-600 text-white' 
-                  : 'bg-white text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              <Settings className="inline-block w-4 h-4 mr-2" />
-              Admin View
-            </button>
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white shadow-sm border-b">
+        <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex items-center gap-3">
+              <Calendar className="text-blue-600" size={28} />
+              <div>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Beled Expense Sponsorship</h1>
+                <p className="text-gray-600 text-sm">Support our shul, month by month</p>
+              </div>
+            </div>
+            
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button
+                onClick={() => setCurrentView('member')}
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm ${
+                  currentView === 'member' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                <User size={16} /> Member
+              </button>
+              <button
+                onClick={() => setCurrentView('admin')}
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm ${
+                  currentView === 'admin' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                <Settings size={16} /> Admin
+              </button>
+            </div>
           </div>
         </div>
+      </header>
 
-        {currentView === 'member' && (
-          <div className="space-y-8">
-            {!selectedExpense && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <h2 className="text-2xl font-bold text-gray-800 mb-6">Monthly Expenses</h2>
-                <div className="grid gap-6">
-                  {expenses.map(expense => (
-                    <div key={expense.id} className={`bg-white border rounded-lg p-6 shadow-sm ${expense.isHighPriority ? 'border-blue-400 bg-blue-50' : ''}`}>
-                      <div className="flex justify-between items-start mb-4">
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className={`text-lg font-semibold ${expense.isHighPriority ? 'text-blue-800' : 'text-gray-800'}`}>{expense.name}</h3>
-                            {expense.isHighPriority && <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full font-medium">Priority</span>}
-                          </div>
-                          <div className="mt-2">
-                            {expense.description && expense.description.split('\n').map((line, index) => (
-                              <p key={index} className="text-gray-600 text-sm">{line}</p>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-2xl font-bold text-gray-800">${expense.amount}</div>
-                          <div className="text-sm text-gray-500">per month</div>
-                        </div>
-                      </div>
-                      
-                      <button
-                        onClick={() => setSelectedExpense(expense)}
-                        className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        <Calendar className="inline-block w-4 h-4 mr-2" />
-                        Choose Month to Sponsor
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+      <main className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-8">
+        {currentView === 'member' ? (
+          <div className="space-y-6">
+            <div className="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-500">
+              <h2 className="text-xl font-bold text-blue-800 mb-2">Welcome to Our Sponsorship Program</h2>
+              <p className="text-blue-700">
+                Help support our shul by sponsoring monthly expenses. Choose any available month for any expense category.
+              </p>
+            </div>
 
-            {selectedExpense && selectedMonth === null && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800">
-                    Select Month for {selectedExpense.name}
-                  </h2>
-                  <button
-                    onClick={() => setSelectedExpense(null)}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
+            <div className="bg-white border rounded-lg p-6 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-800 mb-3">
+                Progress this Month - {currentMonthData.currentMonthName} {selectedYear}
+              </h3>
+              
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">Total Monthly Expenses:</span>
+                  <span className="font-bold text-gray-800">${currentMonthData.totalExpenseForMonth.toLocaleString()}</span>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {months.map((month, index) => {
-                    const IconComponent = seasonIcons[month];
-                    const sponsored = getTotalSponsoredForExpenseAndMonth(selectedExpense.id, index);
-                    const remaining = selectedExpense.amount - sponsored;
-                    const percentage = selectedExpense.amount > 0 ? (sponsored / selectedExpense.amount) * 100 : 0;
-                    
-                    return (
-                      <div
-                        key={month}
-                        onClick={() => remaining > 0 ? setSelectedMonth(index) : null}
-                        className={`p-4 border rounded-lg cursor-pointer transition-all ${
-                          remaining > 0 
-                            ? 'hover:shadow-md hover:border-blue-400 border-gray-200' 
-                            : 'opacity-50 cursor-not-allowed border-gray-200 bg-gray-50'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <h3 className="font-semibold text-gray-800">{month}</h3>
-                          <IconComponent className="w-5 h-5 text-blue-600" />
-                        </div>
-                        
-                        <div className="space-y-2">
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Budget:</span>
-                            <span className="font-medium">${selectedExpense.amount}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Sponsored:</span>
-                            <span className="font-medium text-green-600">${sponsored}</span>
-                          </div>
-                          <div className="flex justify-between text-sm">
-                            <span className="text-gray-600">Remaining:</span>
-                            <span className="font-medium text-red-600">${remaining}</span>
-                          </div>
-                          
-                          <div className="w-full bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                              style={{ width: `${percentage}%` }}
-                            ></div>
-                          </div>
-                          
-                          <div className="text-center text-xs text-gray-500">
-                            {percentage === 100 ? 'Fully Sponsored' : `${percentage.toFixed(0)}% Sponsored`}
-                          </div>
-                        </div>
+                <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                  <div 
+                    className={`h-4 rounded-full transition-all duration-500 ${
+                      isFullySponsored ? 'bg-green-500' : 'bg-blue-500'
+                    }`}
+                    style={{ width: `${currentMonthData.percentage}%` }}
+                  ></div>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <div className="text-sm">
+                    <div className={`font-bold ${isFullySponsored ? 'text-green-600' : 'text-blue-600'}`}>
+                      ${currentMonthData.totalSponsoredForMonth.toLocaleString()} sponsored
+                    </div>
+                    {currentMonthData.totalSponsoredForMonth > 0 && !isFullySponsored && (
+                      <div className="text-black">Thank you</div>
+                    )}
+                    <div className="text-gray-600">
+                      {Math.round(currentMonthData.percentage)}% complete
+                    </div>
+                  </div>
+                  
+                  {!isFullySponsored && (
+                    <div className="text-sm text-right">
+                      <div className="font-bold text-orange-600">
+                        ${currentMonthData.remainingForMonth.toLocaleString()} remaining
                       </div>
-                    );
-                  })}
+                      {currentMonthData.totalSponsoredForMonth > 0 && (
+                        <div className="text-black">Rak B'Achdus</div>
+                      )}
+                      <div className="text-gray-600">
+                        {Math.round(100 - currentMonthData.percentage)}% to go
+                      </div>
+                    </div>
+                  )}
+                  
+                  {isFullySponsored && (
+                    <div className="text-sm text-right">
+                      <div className="font-bold text-green-600">✓ Fully Sponsored!</div>
+                      <div className="text-green-600">Thank you for your support</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Select Year:</label>
+                <select 
+                  value={selectedYear} 
+                  onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                  className="border rounded-lg px-3 py-2 bg-white"
+                >
+                  {[5784, 5785, 5786, 5787, 5788].map(year => (
+                    <option key={year} value={year}>{year}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="text-left sm:text-right">
+                <div className="text-sm text-gray-600">Total Annual Expenses</div>
+                <div className="text-2xl font-bold text-blue-600">${getTotalAnnualExpenses().toLocaleString()}</div>
+              </div>
+            </div>
+
+            <div className="grid gap-6">
+              {expenses.map(expense => (
+                <div key={expense.id} className={`bg-white border rounded-lg p-6 shadow-sm ${expense.isHighPriority ? 'border-blue-400 bg-blue-50' : ''}`}>
+                  <div className="flex justify-between items-start mb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className={`text-lg font-semibold ${expense.isHighPriority ? 'text-blue-800' : 'text-gray-800'}`}>{expense.name}</h3>
+                        {expense.isHighPriority && <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full font-medium">Priority</span>}
+                      </div>
+                      <div className="mt-2">
+                        {expense.description && expense.description.split('\n').map((line, index) => (
+                          <p key={index} className={`text-sm ${
+                            index === 0 ? 'text-gray-600' : 'text-blue-700 font-semibold'
+                          }`}>{line}</p>
+                        ))}
+                      </div>
+                      <div className="text-xl font-bold text-green-600 mt-2">
+                        ${expense.amount.toLocaleString()}/month
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
+                    {months.map((month, index) => {
+                      const sponsors = getSponsor(expense.id, index);
+                      const progress = getMonthProgress(expense, index);
+                      const isFullySponsored = progress.percentage >= 100;
+                      
+                      return (
+                        <div key={`${expense.id}-${month}-${index}`} className="relative">
+                          <button
+                            onClick={() => isFullySponsored ? null : (setSelectedSponsorship({ expenseId: expense.id, month: index }), setShowSponsorForm(true))}
+                            className={`w-full p-2 sm:p-3 rounded text-xs font-medium transition-colors min-h-[100px] ${
+                              isFullySponsored
+                                ? 'bg-green-100 text-green-800 border-2 border-green-300' 
+                                : sponsors.length > 0
+                                ? 'bg-yellow-100 text-yellow-800 border-2 border-yellow-300 hover:bg-yellow-50'
+                                : 'bg-gray-50 text-gray-700 border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-300'
+                            }`}
+                            disabled={isFullySponsored}
+                          >
+                            <div className="flex flex-col items-center gap-1 mb-2">
+                              {getMonthIcon(expense, index)}
+                              <div className="text-xs font-medium">{month}</div>
+                            </div>
+                            
+                            <div className="text-xs font-bold text-gray-600 mb-1">
+                              ${progress.expenseAmount}
+                            </div>
+                            
+                            {sponsors.length > 0 && (
+                              <div className="mt-1 space-y-1">
+                                <div className="w-full bg-gray-200 rounded-full h-1.5">
+                                  <div 
+                                    className={`h-1.5 rounded-full transition-all duration-300 ${
+                                      isFullySponsored ? 'bg-green-500' : 'bg-yellow-500'
+                                    }`}
+                                    style={{ width: `${Math.min(progress.percentage, 100)}%` }}
+                                  ></div>
+                                </div>
+                                <div className="text-xs">
+                                  <div className="font-medium">${progress.total.toLocaleString()}</div>
+                                  {!isFullySponsored && (
+                                    <div className="text-gray-600">${progress.remaining.toLocaleString()} left</div>
+                                  )}
+                                </div>
+                                <div className="text-xs space-y-0.5">
+                                  {sponsors.slice(0, 2).map((sponsor, idx) => (
+                                    <div key={`${sponsor.id}-${idx}`} className="truncate" title={`${sponsor.memberName} - ${sponsor.amount}${sponsor.dedication ? ` - ${sponsor.dedication}` : ''}`}>
+                                      {sponsor.memberName} (${sponsor.amount})
+                                    </div>
+                                  ))}
+                                  {sponsors.length > 2 && (
+                                    <div className="text-xs text-gray-600">+{sponsors.length - 2} more</div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {showPaymentConfirmation && lastTransaction && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-lg p-6 w-full max-w-md">
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <Check className="w-8 h-8 text-green-600" />
+                    </div>
+                    <h3 className="text-xl font-bold text-green-800 mb-2">Payment Submitted!</h3>
+                    <p className="text-gray-600">Your sponsorship has been confirmed and saved to our database.</p>
+                  </div>
+                  
+                  <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                    <div className="text-sm space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Transaction ID:</span>
+                        <span className="font-mono text-xs">{lastTransaction.id}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Expense:</span>
+                        <span>{lastTransaction.expenseName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Month:</span>
+                        <span>{lastTransaction.monthName} {lastTransaction.year}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Amount:</span>
+                        <span className="font-bold">${lastTransaction.amount.toLocaleString()}</span>
+                      </div>
+                      {lastTransaction.dedication && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Dedication:</span>
+                          <span className="text-right">{lastTransaction.dedication}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Recurring:</span>
+                        <span>{lastTransaction.recurring ? 'Yes (5 years)' : 'No'}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => setShowReceiptModal(true)}
+                      className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
+                    >
+                      📄 View Receipt
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        setShowPaymentConfirmation(false);
+                        setLastTransaction(null);
+                      }}
+                      className="w-full bg-gray-200 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-300"
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
 
-            {selectedExpense && selectedMonth !== null && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800">
-                    Sponsor {selectedExpense.name} for {months[selectedMonth]}
-                  </h2>
-                  <button
-                    onClick={() => setSelectedMonth(null)}
-                    className="text-gray-500 hover:text-gray-700"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
-                </div>
+            {showReceiptModal && lastTransaction && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <h3 className="text-xl font-bold text-green-800 mb-4">Tax Receipt</h3>
+                  
+                  <div className="bg-gray-50 border rounded-lg p-4 mb-4">
+                    <textarea 
+                      readOnly
+                      value={`Cong. Tiferes Yechezkel of Beled
+1379 58th Street
+Brooklyn, NY 11219
+Phone: (718) 436-8334
+Email: congbeled@gmail.com
+Tax ID: 11-3090728
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+TAX RECEIPT
+
+Transaction ID: ${lastTransaction.id}
+Date: ${new Date(lastTransaction.date).toLocaleDateString()}
+Amount: ${lastTransaction.amount.toLocaleString()}
+Donor: ${lastTransaction.memberName}
+Email: ${lastTransaction.memberEmail || 'Not provided'}
+Phone: ${lastTransaction.memberPhone || 'Not provided'}
+Expense: ${lastTransaction.expenseName}
+Month: ${lastTransaction.monthName} ${lastTransaction.year}
+${lastTransaction.dedication ? `Dedication: ${lastTransaction.dedication}` : ''}
+${lastTransaction.message ? `Message: ${lastTransaction.message}` : ''}
+Recurring: ${lastTransaction.recurring ? 'Yes (5 years)' : 'No'}
+
+This donation is tax-deductible to the full extent allowed by law.
+
+Thank you for your generous support!`}
+                      className="w-full h-80 text-sm font-mono bg-white border rounded p-3 resize-none"
+                      onClick={(e) => e.target.select()}
+                    />
+                  </div>
+                  
+                  <div className="flex justify-center">
+                    <button
+                      onClick={() => setShowReceiptModal(false)}
+                      className="bg-gray-200 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-300"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  
+                  <p className="text-sm text-gray-600 mt-3 text-center">
+                    Click in the text area above to select all text, then copy and save as needed
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {showSponsorForm && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center p-2 sm:p-4 z-50 overflow-y-auto">
+                <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md my-4 sm:my-8">
+                  <h3 className="text-lg font-bold mb-4">Sponsor {expenses.find(e => e.id === selectedSponsorship.expenseId)?.name}</h3>
+                  <div className="mb-4">
+                    <p className="text-gray-600">
+                      Month: {months[selectedSponsorship.month]} {selectedYear}
+                    </p>
+                    {(() => {
+                      const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
+                      const progress = getMonthProgress(expense, selectedSponsorship.month);
+                      return (
+                        <div>
+                          <p className="text-gray-600">
+                            Monthly cost: ${progress.expenseAmount.toLocaleString()}
+                          </p>
+                          {progress.total > 0 && (
+                            <div className="mt-2">
+                              <p className="text-sm text-gray-600">
+                                Already sponsored: ${progress.total.toLocaleString()} ({Math.round(progress.percentage)}%)
+                              </p>
+                              <p className="text-sm text-gray-600">
+                                Remaining: ${progress.remaining.toLocaleString()}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                  
+                  <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Full Name *
-                      </label>
+                      <label className="block text-sm font-medium mb-1">Your Name *</label>
                       <input
                         type="text"
-                        value={formData.name}
-                        onChange={(e) => handleInputChange('name', e.target.value)}
-                        className={getFieldClassName('name')}
-                        placeholder="Enter your full name"
+                        value={memberInfo.name}
+                        onChange={(e) => setMemberInfo(prev => ({ ...prev, name: e.target.value }))}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="Enter your name"
                       />
-                      {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
                     </div>
-
+                    
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Email Address *
-                      </label>
+                      <label className="block text-sm font-medium mb-1">Sponsorship Amount *</label>
                       <input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => handleInputChange('email', e.target.value)}
-                        className={getFieldClassName('email')}
-                        placeholder="Enter your email"
+                        type="number"
+                        value={memberInfo.amount}
+                        onChange={(e) => setMemberInfo(prev => ({ ...prev, amount: e.target.value }))}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="Enter amount"
+                        min="0.01"
+                        step="0.01"
                       />
-                      {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Phone Number *
-                      </label>
-                      <input
-                        type="tel"
-                        value={formData.phone}
-                        onChange={(e) => handleInputChange('phone', e.target.value)}
-                        className={getFieldClassName('phone')}
-                        placeholder="(555) 123-4567"
-                      />
-                      {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Sponsorship Amount *
-                      </label>
-                      <div className="relative">
-                        <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="1"
-                          max={selectedExpense.amount - getTotalSponsoredForExpenseAndMonth(selectedExpense.id, selectedMonth)}
-                          value={formData.amount}
-                          onChange={(e) => handleInputChange('amount', e.target.value)}
-                          className={`${getFieldClassName('amount')} pl-10`}
-                          placeholder="0.00"
-                        />
-                      </div>
-                      {errors.amount && <p className="text-red-500 text-xs mt-1">{errors.amount}</p>}
                       <p className="text-xs text-gray-500 mt-1">
-                        Remaining: ${(selectedExpense.amount - getTotalSponsoredForExpenseAndMonth(selectedExpense.id, selectedMonth)).toFixed(2)}
+                        Up to full amount of ${(() => {
+                          const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
+                          const progress = getMonthProgress(expense, selectedSponsorship.month);
+                          return progress.remaining.toLocaleString();
+                        })()}
                       </p>
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Dedication (Optional)
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.dedication}
-                      onChange={(e) => handleInputChange('dedication', e.target.value)}
-                      className={getFieldClassName('dedication')}
-                      placeholder="In memory of... / In honor of..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Personal Message (Optional)
-                    </label>
-                    <textarea
-                      value={formData.message}
-                      onChange={(e) => handleInputChange('message', e.target.value)}
-                      className={getFieldClassName('message')}
-                      placeholder="Add a personal message..."
-                      rows="3"
-                    ></textarea>
-                  </div>
-
-                  <div className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id="recurring"
-                      checked={formData.recurring}
-                      onChange={(e) => handleInputChange('recurring', e.target.checked)}
-                      className="mr-2"
-                    />
-                    <label htmlFor="recurring" className="text-sm text-gray-700">
-                      Make this an ongoing sponsorship
-                    </label>
-                  </div>
-
-                  {/* Payment Information */}
-                  <div className="border-t pt-6">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Payment Information</h3>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Card Number *
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.cardNumber}
-                          onChange={(e) => handleInputChange('cardNumber', formatCardNumber(e.target.value))}
-                          className={getFieldClassName('cardNumber')}
-                          placeholder="1234 5678 9012 3456"
-                          maxLength="19"
-                        />
-                        {errors.cardNumber && <p className="text-red-500 text-xs mt-1">{errors.cardNumber}</p>}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Name on Card *
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.cardName}
-                          onChange={(e) => handleInputChange('cardName', e.target.value)}
-                          className={getFieldClassName('cardName')}
-                          placeholder="John Doe"
-                        />
-                        {errors.cardName && <p className="text-red-500 text-xs mt-1">{errors.cardName}</p>}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Expiry Date *
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.expiryDate}
-                          onChange={(e) => handleInputChange('expiryDate', formatExpiryDate(e.target.value))}
-                          className={getFieldClassName('expiryDate')}
-                          placeholder="MM/YY"
-                          maxLength="5"
-                        />
-                        {errors.expiryDate && <p className="text-red-500 text-xs mt-1">{errors.expiryDate}</p>}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          CVV *
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.cvv}
-                          onChange={(e) => handleInputChange('cvv', e.target.value.replace(/\D/g, ''))}
-                          className={getFieldClassName('cvv')}
-                          placeholder="123"
-                          maxLength="4"
-                        />
-                        {errors.cvv && <p className="text-red-500 text-xs mt-1">{errors.cvv}</p>}
-                      </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Email (optional)</label>
+                      <input
+                        type="email"
+                        value={memberInfo.email}
+                        onChange={(e) => setMemberInfo(prev => ({ ...prev, email: e.target.value }))}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="your.email@example.com"
+                      />
                     </div>
-                  </div>
-
-                  {/* Billing Address */}
-                  <div className="border-t pt-6">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">Billing Address</h3>
                     
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Street Address *
-                        </label>
-                        <input
-                          type="text"
-                          value={formData.billingAddress}
-                          onChange={(e) => handleInputChange('billingAddress', e.target.value)}
-                          className={getFieldClassName('billingAddress')}
-                          placeholder="123 Main Street"
-                        />
-                        {errors.billingAddress && <p className="text-red-500 text-xs mt-1">{errors.billingAddress}</p>}
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            City *
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.city}
-                            onChange={(e) => handleInputChange('city', e.target.value)}
-                            className={getFieldClassName('city')}
-                            placeholder="New York"
-                          />
-                          {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city}</p>}
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            State *
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.state}
-                            onChange={(e) => handleInputChange('state', e.target.value)}
-                            className={getFieldClassName('state')}
-                            placeholder="NY"
-                          />
-                          {errors.state && <p className="text-red-500 text-xs mt-1">{errors.state}</p>}
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            ZIP Code *
-                          </label>
-                          <input
-                            type="text"
-                            value={formData.zipCode}
-                            onChange={(e) => handleInputChange('zipCode', e.target.value)}
-                            className={getFieldClassName('zipCode')}
-                            placeholder="12345"
-                          />
-                          {errors.zipCode && <p className="text-red-500 text-xs mt-1">{errors.zipCode}</p>}
-                        </div>
-                      </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Phone (optional)</label>
+                      <input
+                        type="tel"
+                        value={memberInfo.phone}
+                        onChange={(e) => setMemberInfo(prev => ({ ...prev, phone: e.target.value }))}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="(555) 123-4567"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Dedication (optional)</label>
+                      <input
+                        type="text"
+                        value={memberInfo.dedication}
+                        onChange={(e) => setMemberInfo(prev => ({ ...prev, dedication: e.target.value }))}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="In memory of... / In honor of..."
+                      />
+                      <p className="text-xs text-gray-500 mt-1">This will be shown publicly</p>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Personal Message (optional)</label>
+                      <textarea
+                        value={memberInfo.message}
+                        onChange={(e) => setMemberInfo(prev => ({ ...prev, message: e.target.value }))}
+                        className="w-full border rounded-lg px-3 py-2 h-20 resize-none"
+                        placeholder="Add a personal message or note..."
+                      />
+                    </div>
+                    
+                    <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
+                      <input
+                        type="checkbox"
+                        id="recurring"
+                        checked={memberInfo.recurring}
+                        onChange={(e) => setMemberInfo(prev => ({ ...prev, recurring: e.target.checked }))}
+                        className="w-4 h-4"
+                      />
+                      <label htmlFor="recurring" className="text-sm font-medium text-blue-800">
+                        Make this an ongoing sponsorship (5 years)
+                      </label>
                     </div>
                   </div>
-
-                  {/* Error Summary */}
-                  {Object.keys(errors).length > 0 && (
-                    <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                      <h4 className="text-sm font-medium text-red-800 mb-2">Please fix the following errors:</h4>
-                      <ul className="list-disc list-inside text-sm text-red-700">
-                        {Object.values(errors).map((error, index) => (
-                          <li key={index}>{error}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  <button
-                    type="submit"
-                    disabled={isSubmitting || Object.keys(errors).length > 0}
-                    className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
-                      isSubmitting || Object.keys(errors).length > 0
-                        ? 'bg-gray-400 text-gray-600 cursor-not-allowed'
-                        : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white inline-block mr-2"></div>
-                        Processing Payment...
-                      </>
-                    ) : (
-                      'Process Payment & Confirm Sponsorship'
-                    )}
-                  </button>
-                </form>
+                  
+                  <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                    <button
+                      onClick={sponsorExpense}
+                      disabled={!memberInfo.name?.trim() || !memberInfo.amount || parseFloat(memberInfo.amount) <= 0}
+                      className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+                    >
+                      Confirm Sponsorship
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowSponsorForm(false);
+                        setMemberInfo({ 
+                          name: '', email: '', phone: '', dedication: '', message: '', recurring: true, amount: '',
+                          cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
+                          billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment: false
+                        });
+                      }}
+                      className="flex-1 bg-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-400 font-medium"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </div>
-        )}
+        ) : (
+          <div className="space-y-6">
+            <div className="bg-purple-50 p-6 rounded-lg border-l-4 border-purple-500">
+              <h2 className="text-xl font-bold text-purple-800 mb-2">Administrator Dashboard</h2>
+              <p className="text-purple-700">
+                Manage expenses and view sponsorship status. All data is automatically saved to Firebase.
+              </p>
+            </div>
 
-        {currentView === 'admin' && (
-          <div className="space-y-8">
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-gray-800">Expense Management</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-4 rounded-lg border">
+                <div className="text-2xl font-bold text-blue-600">${getTotalSponsored().toLocaleString()}</div>
+                <div className="text-sm text-gray-600">Total Sponsored ({selectedYear})</div>
+              </div>
+              <div className="bg-white p-4 rounded-lg border">
+                <div className="text-2xl font-bold text-green-600">${getTotalAnnualExpenses().toLocaleString()}</div>
+                <div className="text-sm text-gray-600">Annual Expense Total</div>
+              </div>
+              <div className="bg-white p-4 rounded-lg border">
+                <div className="text-2xl font-bold text-orange-600">
+                  {getTotalAnnualExpenses() > 0 ? Math.round((getTotalSponsored() / getTotalAnnualExpenses()) * 100) : 0}%
+                </div>
+                <div className="text-sm text-gray-600">Sponsored Coverage</div>
+              </div>
+            </div>
+
+            <div className="bg-white p-4 sm:p-6 rounded-lg border">
+              <h3 className="text-lg font-bold mb-4">Add New Expense</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Expense Name *</label>
+                  <input
+                    type="text"
+                    placeholder="Enter expense name"
+                    value={newExpense.name}
+                    onChange={(e) => setNewExpense(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 text-base focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Monthly Amount *</label>
+                  <input
+                    type="number"
+                    placeholder="Enter monthly amount"
+                    value={newExpense.amount}
+                    onChange={(e) => setNewExpense(prev => ({ ...prev, amount: e.target.value }))}
+                    className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 text-base focus:border-blue-500 focus:outline-none"
+                    min="0.01"
+                    step="0.01"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Description (optional)</label>
+                  <textarea
+                    placeholder="Enter description"
+                    value={newExpense.description}
+                    onChange={(e) => setNewExpense(prev => ({ ...prev, description: e.target.value }))}
+                    className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 text-base h-20 resize-none focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
                 <button
-                  onClick={() => setShowAddExpense(true)}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  onClick={addExpense}
+                  className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 font-medium text-base"
                 >
-                  <Plus className="inline-block w-4 h-4 mr-2" />
-                  Add Expense
+                  <Plus size={16} /> Add Expense
                 </button>
               </div>
+            </div>
 
-              <div className="grid gap-4">
-                {expenses.map(expense => (
-                  <div key={expense.id} className={`p-4 border rounded-lg ${expense.isHighPriority ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}`}>
+            <div className="space-y-4">
+              <h3 className="text-lg font-bold">Current Expenses</h3>
+              {expenses.map(expense => (
+                <div 
+                  key={expense.id} 
+                  ref={el => expenseRefs.current[expense.id] = el}
+                  className={`bg-white border rounded-lg p-4 transition-all duration-500 ${
+                    newlyAddedExpenseId === expense.id 
+                      ? 'border-green-400 bg-green-50 shadow-lg' 
+                      : 'border-gray-200'
+                  }`}
+                >
+                  {editingExpense === expense.id ? (
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={editingValues.name}
+                        onChange={(e) => setEditingValues(prev => ({ ...prev, name: e.target.value }))}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="Expense name"
+                      />
+                      <input
+                        type="number"
+                        value={editingValues.amount}
+                        onChange={(e) => setEditingValues(prev => ({ ...prev, amount: e.target.value }))}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="Monthly amount"
+                      />
+                      <input
+                        type="text"
+                        value={editingValues.description}
+                        onChange={(e) => setEditingValues(prev => ({ ...prev, description: e.target.value }))}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="Description"
+                      />
+                      
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => updateExpense(expense.id, editingValues)}
+                          className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 flex items-center gap-1"
+                        >
+                          <Check size={14} /> Save
+                        </button>
+                        <button
+                          onClick={cancelEditing}
+                          className="bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700 flex items-center gap-1"
+                        >
+                          <X size={14} /> Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
                     <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <h3 className="font-semibold text-gray-800">{expense.name}</h3>
-                          {expense.isHighPriority && <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full">Priority</span>}
-                        </div>
-                        <p className="text-gray-600 text-sm mb-2">{expense.description}</p>
-                        <p className="text-lg font-bold text-gray-800">${expense.amount}/month</p>
+                      <div>
+                        <h4 className="font-semibold">{expense.name}</h4>
+                        <p className="text-gray-600 text-sm">{expense.description}</p>
+                        <p className="font-bold text-green-600 mt-2">${expense.amount.toLocaleString()}/month</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Sponsored: {months.filter((_, index) => {
+                            const progress = getMonthProgress(expense, index);
+                            return progress.percentage >= 100;
+                          }).length}/12 months fully sponsored
+                        </p>
                       </div>
                       <div className="flex gap-2">
                         <button
-                          onClick={() => {
-                            setEditingExpense(expense);
-                            setIsEditing(true);
-                          }}
+                          onClick={() => startEditing(expense)}
                           className="text-blue-600 hover:text-blue-800 p-1"
                         >
-                          <Edit3 className="w-4 h-4" />
+                          <Edit3 size={16} />
                         </button>
                         <button
-                          onClick={() => handleDeleteExpense(expense.id)}
+                          onClick={() => {
+                            if (confirm('Are you sure you want to delete this expense? This will also remove all associated sponsorships.')) {
+                              deleteExpense(expense.id);
+                            }
+                          }}
                           className="text-red-600 hover:text-red-800 p-1"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">Monthly Overview</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {getMonthlyData().map((monthData, index) => {
-                  const IconComponent = seasonIcons[monthData.month];
-                  return (
-                    <div key={monthData.month} className="border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-semibold text-gray-800">{monthData.month}</h3>
-                        <IconComponent className="w-5 h-5 text-blue-600" />
-                      </div>
-                      
-                      <div className="space-y-2 mb-4">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Total Budget:</span>
-                          <span className="font-medium">${monthData.totalBudget}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Sponsored:</span>
-                          <span className="font-medium text-green-600">${monthData.totalSponsored}</span>
-                        </div>
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Remaining:</span>
-                          <span className="font-medium text-red-600">${monthData.totalRemaining}</span>
-                        </div>
-                      </div>
-
-                      <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
-                        <div 
-                          className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${monthData.overallPercentage}%` }}
-                        ></div>
-                      </div>
-
-                      <div className="text-center text-xs text-gray-500 mb-4">
-                        {monthData.overallPercentage.toFixed(0)}% Sponsored
-                      </div>
-
-                      {/* Sponsorships for this month */}
-                      <div className="space-y-2">
-                        {monthData.expenses.map(expense => {
-                          const expenseSponsorships = getSponsorshipsForExpenseAndMonth(expense.id, index);
-                          return expenseSponsorships.map(sponsorship => (
-                            <div key={sponsorship.id} className="flex items-center justify-between bg-gray-50 p-2 rounded text-xs">
-                              <div className="flex-1 min-w-0">
-                                <div className="font-medium text-gray-800 truncate" title={`${sponsorship.memberName} - ${expense.name}`}>
-                                  {sponsorship.memberName}
-                                </div>
-                                <div className="text-gray-600 truncate" title={expense.name}>
-                                  {expense.name} (${sponsorship.amount})
-                                </div>
-                                {sponsorship.dedication && (
-                                  <div className="text-gray-500 truncate" title={sponsorship.dedication}>
-                                    {sponsorship.dedication}
+                  )}
+                  
+                  <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
+                    {months.map((month, index) => {
+                      const sponsors = getSponsor(expense.id, index);
+                      const progress = getMonthProgress(expense, index);
+                      const isSponsored = sponsors.length > 0;
+                      return (
+                        <div key={`${expense.id}-${month}-${index}`} className="relative">
+                          <div className={`p-2 rounded text-xs text-center min-h-[80px] ${
+                            isSponsored
+                              ? 'bg-green-100 text-green-800 border border-green-300' 
+                              : 'bg-gray-100 text-gray-600 border border-gray-200'
+                          }`}>
+                            <div className="flex flex-col items-center gap-1 mb-2">
+                              <span className="text-xs font-medium">{month}</span>
+                            </div>
+                            <div className="text-xs font-bold text-gray-600">
+                              ${progress.expenseAmount}
+                            </div>
+                            {isSponsored && (
+                              <div className="space-y-1 mt-1">
+                                <div className="text-xs font-bold">${progress.total}</div>
+                                {sponsors.slice(0, 2).map((sponsor, idx) => (
+                                  <div key={`${sponsor.id}-${idx}`} className="truncate text-xs font-medium">
+                                    {sponsor.memberName}
                                   </div>
+                                ))}
+                                {sponsors.length > 2 && (
+                                  <div className="text-xs text-gray-600">+{sponsors.length - 2} more</div>
                                 )}
                               </div>
-                              <button
-                                onClick={() => handleRemoveSponsorship(sponsorship)}
-                                className="text-red-600 hover:text-red-800 ml-2 p-1 flex-shrink-0"
-                                title={`Remove ${sponsorship.memberName}'s ${sponsorship.amount} sponsorship${sponsorship.dedication ? ` - ${sponsorship.dedication}` : ''}`}
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          ));
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Add Expense Modal */}
-        {showAddExpense && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">Add New Expense</h3>
-              <form onSubmit={handleAddExpense} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Expense Name</label>
-                  <input
-                    type="text"
-                    value={newExpense.name}
-                    onChange={(e) => setNewExpense({...newExpense, name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Monthly Amount</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={newExpense.amount}
-                    onChange={(e) => setNewExpense({...newExpense, amount: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                  <textarea
-                    value={newExpense.description}
-                    onChange={(e) => setNewExpense({...newExpense, description: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows="3"
-                  />
-                </div>
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="newExpenseHighPriority"
-                    checked={newExpense.isHighPriority}
-                    onChange={(e) => setNewExpense({...newExpense, isHighPriority: e.target.checked})}
-                    className="mr-2"
-                  />
-                  <label htmlFor="newExpenseHighPriority" className="text-sm text-gray-700">
-                    High Priority
-                  </label>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
-                  >
-                    Add Expense
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddExpense(false)}
-                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Edit Expense Modal */}
-        {isEditing && editingExpense && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h3 className="text-lg font-semibold mb-4">Edit Expense</h3>
-              <form onSubmit={handleUpdateExpense} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Expense Name</label>
-                  <input
-                    type="text"
-                    value={editingExpense.name}
-                    onChange={(e) => setEditingExpense({...editingExpense, name: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Monthly Amount</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={editingExpense.amount}
-                    onChange={(e) => setEditingExpense({...editingExpense, amount: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                  <textarea
-                    value={editingExpense.description}
-                    onChange={(e) => setEditingExpense({...editingExpense, description: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows="3"
-                  />
-                </div>
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="editExpenseHighPriority"
-                    checked={editingExpense.isHighPriority}
-                    onChange={(e) => setEditingExpense({...editingExpense, isHighPriority: e.target.checked})}
-                    className="mr-2"
-                  />
-                  <label htmlFor="editExpenseHighPriority" className="text-sm text-gray-700">
-                    High Priority
-                  </label>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="submit"
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
-                  >
-                    Update Expense
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsEditing(false);
-                      setEditingExpense(null);
-                    }}
-                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* Confirmation Modal */}
-        {showConfirmation && confirmationData && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Check className="w-8 h-8 text-green-600" />
-                </div>
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">Sponsorship Confirmed!</h3>
-                <p className="text-gray-600 mb-4">
-                  Thank you for sponsoring {confirmationData.expenseName} for {confirmationData.month}
-                </p>
-                
-                <div className="bg-gray-50 p-4 rounded-lg text-left mb-4">
-                  <h4 className="font-semibold text-gray-800 mb-2">Sponsorship Details:</h4>
-                  <div className="space-y-1 text-sm text-gray-600">
-                    <div className="flex justify-between">
-                      <span>Sponsor:</span>
-                      <span className="font-medium">{confirmationData.memberName}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Amount:</span>
-                      <span className="font-medium">${confirmationData.amount}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Month:</span>
-                      <span className="font-medium">{confirmationData.month} {selectedYear}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Recurring:</span>
-                      <span className="font-medium">{confirmationData.recurring ? 'Yes' : 'No'}</span>
-                    </div>
-                    {confirmationData.dedication && (
-                      <div className="flex justify-between">
-                        <span>Dedication:</span>
-                        <span className="font-medium">{confirmationData.dedication}</span>
-                      </div>
-                    )}
+                            )}
+                          </div>
+                          {isSponsored && sponsors.map((sponsor, idx) => (
+                            <button
+                              key={sponsor.id}
+                              onClick={() => {
+                                if (confirm(`Remove ${sponsor.memberName}'s sponsorship?`)) {
+                                  removeSponsor(sponsor.id);
+                                }
+                              }}
+                              className={`absolute bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs hover:bg-red-600 ${
+                                idx === 0 ? '-top-1 -right-1' : 
+                                idx === 1 ? '-top-1 -left-1' :
+                                '-bottom-1 -right-1'
+                              }`}
+                              title={`Remove ${sponsor.memberName}'s sponsorship`}
+                              style={{ display: idx < 3 ? 'flex' : 'none' }}
+                            >
+                              ×
+                            </button>
+                          ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-
-                <div className="hidden">
-                  <div ref={printRef} className="receipt">
-                    <div className="header">
-                      <h2>Beled Synagogue</h2>
-                      <h3>Tax Deductible Receipt</h3>
-                      <p>Tax ID: 12-3456789</p>
-                    </div>
-                    <div className="content">
-                      <p><strong>Date:</strong> {new Date().toLocaleDateString()}</p>
-                      <p><strong>Donor:</strong> {confirmationData.memberName}</p>
-                      <p><strong>Amount:</strong> ${confirmationData.amount}</p>
-                      <p><strong>Purpose:</strong> Sponsorship of {confirmationData.expenseName}</p>
-                      <p><strong>Month:</strong> {confirmationData.month} {selectedYear}</p>
-                      <p><strong>Recurring:</strong> {confirmationData.recurring ? 'Yes' : 'No'}</p>
-                      {confirmationData.dedication && (
-                        <p><strong>Dedication:</strong> {confirmationData.dedication}</p>
-                      )}
-                      <p><strong>Reference ID:</strong> {Math.random().toString(36).substr(2, 9).toUpperCase()}</p>
-                    </div>
-                    <div className="footer">
-                      <p>This receipt serves as proof of your tax-deductible contribution.</p>
-                      <p>No goods or services were provided in exchange for this contribution.</p>
-                      <p>Please retain this receipt for your tax records.</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={printReceipt}
-                    className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors"
-                  >
-                    Print Receipt
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowConfirmation(false);
-                      setConfirmationData(null);
-                    }}
-                    className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition-colors"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 };
