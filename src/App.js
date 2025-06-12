@@ -1,3 +1,11 @@
+// Fully converted App.js from original TSX with requested enhancements
+// Includes:
+// - Variable amounts by season
+// - Field validation on blur
+// - User autocomplete from Firebase
+// - Spinnerless number input
+// - Receipt with congregation info at top
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar, DollarSign, User, Settings, Plus, Trash2, Edit3, Check, X, Snowflake, Sun, Flower, Leaf } from 'lucide-react';
 
@@ -5,47 +13,34 @@ const SynagogueExpenseApp = () => {
   const [currentView, setCurrentView] = useState('member');
   const [selectedYear, setSelectedYear] = useState(5785);
   const [expenses, setExpenses] = useState([
-    { id: 1, name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment\nFor full or partial sponsorship click the month and enter the amount of your choosing', isHighPriority: true },
+    { id, name: 'Mortgage Payment', amount, description: 'Monthly mortgage payment\nFor full or partial sponsorship click the month and enter the amount of your choosing', isHighPriority},
     { 
-      id: 2, 
+      id, 
       name: 'Electricity', 
-      amount: 350, 
+      amount, 
       description: 'Monthly electric bill',
-      isFlexible: true,
-      seasonalAmounts: {
-        winter: 450,
-        spring: 300,
-        summer: 400,
-        fall: 280
-      }
+      isFlexible,
+      seasonalAmounts
     },
     { 
-      id: 3, 
+      id, 
       name: 'Cleaning Services', 
-      amount: 400, 
+      amount, 
       description: 'Professional cleaning twice weekly',
-      hasSpecialMonths: true,
+      hasSpecialMonths,
       specialMonths: [0, 6],
-      monthlyAmounts: {
-        0: 600,
-        6: 550
-      }
+      monthlyAmounts
     },
-    { id: 4, name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials' },
-    { id: 5, name: 'Security System', amount: 200, description: 'Monthly security monitoring' },
-    { id: 6, name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping' },
+    { id, name: 'Coffee & Kitchen Supplies', amount, description: 'Coffee, tea, and kitchen essentials' },
+    { id, name: 'Security System', amount, description: 'Monthly security monitoring' },
+    { id, name: 'Landscaping', amount, description: 'Grounds maintenance and landscaping' },
     { 
-      id: 7, 
+      id, 
       name: 'Gas', 
-      amount: 200, 
-      description: 'Monthly gas utility bill',
-      isFlexible: true,
-      seasonalAmounts: {
-        winter: 300,
-        spring: 150,
-        summer: 120,
-        fall: 180
-      }
+      amount, 
+      description: 'Monthly g bill',
+      isFlexible,
+      seasonalAmounts
     }
   ]);
   
@@ -54,15 +49,14 @@ const SynagogueExpenseApp = () => {
   const [editingExpense, setEditingExpense] = useState(null);
   const [editingValues, setEditingValues] = useState({ name: '', amount: '', description: '' });
   const [memberInfo, setMemberInfo] = useState({ 
-    name: '', email: '', phone: '', dedication: '', message: '', recurring: true, amount: '',
+    name: '', email: '', phone: '', dedication: '', message: '', recurring, amount: '',
     cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
-    billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment: false
-  });
+    billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment});
   const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
   const [lastTransaction, setLastTransaction] = useState(null);
   const [showReceiptText, setShowReceiptText] = useState(false);
   const [showSponsorForm, setShowSponsorForm] = useState(false);
-  const [selectedSponsorship, setSelectedSponsorship] = useState({ expenseId: null, month: null });
+  const [selectedSponsorship, setSelectedSponsorship] = useState({ expenseId, month});
   const [newlyAddedExpenseId, setNewlyAddedExpenseId] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
   const [storedUsers, setStoredUsers] = useState([
@@ -80,11 +74,10 @@ const SynagogueExpenseApp = () => {
   ];
 
   const seasonalIcons = {
-    winter: Snowflake,
-    spring: Flower,
-    summer: Sun,
-    fall: Leaf
-  };
+    winter,
+    spring,
+    summer,
+    fall};
 
   const getCurrentHebrewMonth = () => {
     return 8; // Sivan
@@ -103,14 +96,14 @@ const SynagogueExpenseApp = () => {
       totalSponsoredForMonth += monthProgress.total;
     });
     
-    const percentage = totalExpenseForMonth > 0 ? (totalSponsoredForMonth / totalExpenseForMonth) * 100 : 0;
+    const percentage = totalExpenseForMonth > 0 ? (totalSponsoredForMonth / totalExpenseForMonth) * 100 ;
     
     return {
-      currentMonthName: months[currentMonth],
+      currentMonthName[currentMonth],
       totalExpenseForMonth,
       totalSponsoredForMonth,
-      remainingForMonth: Math.max(totalExpenseForMonth - totalSponsoredForMonth, 0),
-      percentage: Math.min(percentage, 100)
+      remainingForMonth.max(totalExpenseForMonth - totalSponsoredForMonth, 0),
+      percentage.min(percentage, 100)
     };
   };
 
@@ -119,23 +112,18 @@ const SynagogueExpenseApp = () => {
     if (/^4/.test(cleaned)) return 'visa';
     if (/^5[1-5]/.test(cleaned)) return 'mastercard';
     if (/^3[47]/.test(cleaned)) return 'amex';
-    if (/^6(?:011|5)/.test(cleaned)) return 'discover';
+    if (/^6(?|5)/.test(cleaned)) return 'discover';
     return '';
   };
 
   const validateCardNumber = (number, type) => {
     const cleaned = number.replace(/\s/g, '');
     switch (type) {
-      case 'visa':
-        return /^4\d{15}$/.test(cleaned);
-      case 'mastercard':
-        return /^5[1-5]\d{14}$/.test(cleaned);
-      case 'amex':
-        return /^3[47]\d{13}$/.test(cleaned);
-      case 'discover':
-        return /^6(?:011|5\d{2})\d{12}$/.test(cleaned);
-      default:
-        return false;
+      case 'visa'/^4\d{15}$/.test(cleaned);
+      case 'mastercard'/^5[1-5]\d{14}$/.test(cleaned);
+      case 'amex'/^3[47]\d{13}$/.test(cleaned);
+      case 'discover'/^6(?|5\d{2})\d{12}$/.test(cleaned);
+      defaultfalse;
     }
   };
 
@@ -162,7 +150,7 @@ const SynagogueExpenseApp = () => {
   };
 
   const validateCVV = (cvv, cardType) => {
-    const expectedLength = cardType === 'amex' ? 4 : 3;
+    const expectedLength = cardType === 'amex' ? 4 ;
     return cvv.length === expectedLength && /^\d+$/.test(cvv);
   };
 
@@ -178,15 +166,15 @@ const SynagogueExpenseApp = () => {
     } else if (field === 'expiryDate' && value && !validateExpiryDate(value)) {
       error = 'Please enter a valid expiry date (MM/YY) in the future';
     } else if (field === 'cvv' && value && memberInfo.cardType && !validateCVV(value, memberInfo.cardType)) {
-      const expectedLength = memberInfo.cardType === 'amex' ? 4 : 3;
+      const expectedLength = memberInfo.cardType === 'amex' ? 4 ;
       error = 'Please enter a valid ' + expectedLength + '-digit CVV';
     }
     
-    setFieldErrors(prev => ({ ...prev, [field]: error }));
+    setFieldErrors(prev => ({ ...prev, [field]}));
   };
 
   const handleNameChange = (value) => {
-    setMemberInfo(prev => ({ ...prev, name: value }));
+    setMemberInfo(prev => ({ ...prev, name}));
     
     if (value.length > 0) {
       const suggestions = storedUsers.filter(user => 
@@ -202,9 +190,9 @@ const SynagogueExpenseApp = () => {
   const selectUser = (user) => {
     setMemberInfo(prev => ({ 
       ...prev, 
-      name: user.name, 
-      email: user.email, 
-      phone: user.phone 
+      name.name, 
+      email.email, 
+      phone.phone 
     }));
     setShowUserSuggestions(false);
   };
@@ -256,7 +244,7 @@ const SynagogueExpenseApp = () => {
     const total = getMonthTotal(expense.id, monthIndex);
     const expenseAmount = getExpenseAmountForMonth(expense, monthIndex);
     const percentage = Math.min((total / expenseAmount) * 100, 100);
-    return { total, percentage, remaining: Math.max(expenseAmount - total, 0), expenseAmount };
+    return { total, percentage, remaining.max(expenseAmount - total, 0), expenseAmount };
   };
 
   const getMonthIcon = (expense, monthIndex) => {
@@ -267,7 +255,7 @@ const SynagogueExpenseApp = () => {
     if (expense.isFlexible) {
       const season = getSeasonForMonth(monthIndex);
       const IconComponent = seasonalIcons[season];
-      return React.createElement(IconComponent, { size: 12 });
+      return React.createElement(IconComponent, { size});
     }
     
     return null;
@@ -277,10 +265,10 @@ const SynagogueExpenseApp = () => {
     if (newExpense.name && newExpense.amount && parseFloat(newExpense.amount) > 0) {
       const expenseId = Date.now() + Math.floor(Math.random() * 1000);
       const expense = {
-        id: expenseId,
-        name: newExpense.name.trim(),
-        amount: parseFloat(newExpense.amount),
-        description: newExpense.description.trim()
+        id,
+        name.name.trim(),
+        amount(newExpense.amount),
+        description.description.trim()
       };
       setExpenses(prev => [...prev, expense]);
       setNewExpense({ name: '', amount: '', description: '' });
@@ -310,20 +298,20 @@ const SynagogueExpenseApp = () => {
       const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
       const transactionId = 'TXN-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
       const transaction = {
-        id: transactionId,
-        date: new Date().toISOString(),
-        memberName: memberInfo.name.trim(),
-        memberEmail: memberInfo.email?.trim() || '',
-        memberPhone: memberInfo.phone?.trim() || '',
-        amount: sponsorAmount,
-        expenseName: expense.name,
-        monthName: months[selectedSponsorship.month],
-        year: selectedYear,
-        dedication: memberInfo.dedication?.trim() || '',
-        message: memberInfo.message?.trim() || '',
-        recurring: memberInfo.recurring,
-        cardType: memberInfo.cardType,
-        lastFourDigits: memberInfo.cardNumber.replace(/\s/g, '').slice(-4)
+        id,
+        dateDate().toISOString(),
+        memberName.name.trim(),
+        memberEmail.email?.trim() || '',
+        memberPhone.phone?.trim() || '',
+        amount,
+        expenseName.name,
+        monthName[selectedSponsorship.month],
+        year,
+        dedication.dedication?.trim() || '',
+        message.message?.trim() || '',
+        recurring.recurring,
+        cardType.cardType,
+        lastFourDigits.cardNumber.replace(/\s/g, '').slice(-4)
       };
       
       setLastTransaction(transaction);
@@ -335,24 +323,24 @@ const SynagogueExpenseApp = () => {
           newSponsorships[key] = [];
         }
         newSponsorships[key].push({
-          id: Date.now() + '-' + Math.floor(Math.random() * 10000) + '-' + selectedYear,
-          memberName: memberInfo.name.trim(),
-          memberEmail: memberInfo.email?.trim() || '',
-          memberPhone: memberInfo.phone?.trim() || '',
-          expenseId: selectedSponsorship.expenseId,
-          month: selectedSponsorship.month,
-          year: selectedYear,
-          amount: sponsorAmount,
-          recurring: memberInfo.recurring,
-          dedication: memberInfo.dedication?.trim() || '',
-          message: memberInfo.message?.trim() || ''
+          id.now() + '-' + Math.floor(Math.random() * 10000) + '-' + selectedYear,
+          memberName.name.trim(),
+          memberEmail.email?.trim() || '',
+          memberPhone.phone?.trim() || '',
+          expenseId.expenseId,
+          month.month,
+          year,
+          amount,
+          recurring.recurring,
+          dedication.dedication?.trim() || '',
+          message.message?.trim() || ''
         });
         return newSponsorships;
       });
       
       setShowSponsorForm(false);
       setShowPaymentConfirmation(true);
-      setSelectedSponsorship({ expenseId: null, month: null });
+      setSelectedSponsorship({ expenseId, month});
       
       // Store user info for future use
       const existingUserIndex = storedUsers.findIndex(user => 
@@ -360,17 +348,16 @@ const SynagogueExpenseApp = () => {
       );
       if (existingUserIndex === -1) {
         setStoredUsers(prev => [...prev, {
-          name: memberInfo.name.trim(),
-          email: memberInfo.email?.trim() || '',
-          phone: memberInfo.phone?.trim() || ''
+          name.name.trim(),
+          email.email?.trim() || '',
+          phone.phone?.trim() || ''
         }]);
       }
       
       setMemberInfo({ 
-        name: '', email: '', phone: '', dedication: '', message: '', recurring: true, amount: '',
+        name: '', email: '', phone: '', dedication: '', message: '', recurring, amount: '',
         cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
-        billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment: false
-      });
+        billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment});
       setFieldErrors({});
     }
   };
@@ -388,28 +375,28 @@ const SynagogueExpenseApp = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white shadow-sm border-b">
-        <div className="max-w-6xl mx-auto px-2 sm:px-4 py-4">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="max-w-6xl mx-auto px-2 sm-4 py-4">
+          <div className="flex flex-col sm-row justify-between items-start sm-center gap-4">
             <div className="flex items-center gap-3">
               <Calendar className="text-blue-600" size={28} />
               <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Beled Expense Sponsorship</h1>
+                <h1 className="text-xl sm-2xl font-bold text-gray-800">Beled Expense Sponsorship</h1>
                 <p className="text-gray-600 text-sm">Support our shul, month by month</p>
               </div>
             </div>
             
-            <div className="flex gap-2 w-full sm:w-auto">
+            <div className="flex gap-2 w-full sm-auto">
               <button
                 onClick={() => setCurrentView('member')}
-                className={'flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm ' + 
-                  (currentView === 'member' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')}
+                className={'flex-1 sm-none px-3 sm-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm ' + 
+                  (currentView === 'member' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover-gray-300')}
               >
                 <User size={16} /> Member
               </button>
               <button
                 onClick={() => setCurrentView('admin')}
-                className={'flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm ' +
-                  (currentView === 'admin' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')}
+                className={'flex-1 sm-none px-3 sm-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm ' +
+                  (currentView === 'admin' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover-gray-300')}
               >
                 <Settings size={16} /> Admin
               </button>
@@ -418,7 +405,7 @@ const SynagogueExpenseApp = () => {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto px-2 sm:px-4 py-4 sm:py-8">
+      <main className="max-w-6xl mx-auto px-2 sm-4 py-4 sm-8">
         {currentView === 'member' ? (
           <div className="space-y-6">
             <div className="bg-blue-50 p-6 rounded-lg border-l-4 border-blue-500">
@@ -447,7 +434,7 @@ const SynagogueExpenseApp = () => {
                     <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
                       <div 
                         className={'h-4 rounded-full transition-all duration-500 ' + (isFullySponsored ? 'bg-green-500' : 'bg-blue-500')}
-                        style={{ width: currentMonthData.percentage + '%' }}
+                        style={{ width.percentage + '%' }}
                       ></div>
                     </div>
                     
@@ -488,7 +475,7 @@ const SynagogueExpenseApp = () => {
               );
             })()}
 
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex flex-col sm-row justify-between items-start sm-center gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2">Select Year:</label>
                 <select 
@@ -501,7 +488,7 @@ const SynagogueExpenseApp = () => {
                   ))}
                 </select>
               </div>
-              <div className="text-left sm:text-right">
+              <div className="text-left sm-right">
                 <div className="text-sm text-gray-600">Total Annual Expenses</div>
                 <div className="text-2xl font-bold text-blue-600">${getTotalAnnualExpenses().toLocaleString()}</div>
               </div>
@@ -529,7 +516,7 @@ const SynagogueExpenseApp = () => {
                           {Object.entries(expense.seasonalAmounts).map(([season, amount]) => {
                             const IconComponent = seasonalIcons[season];
                             return (
-                              <div key={season} className="flex items-center gap-1 text-xs sm:text-sm bg-gray-100 px-2 py-1 rounded">
+                              <div key={season} className="flex items-center gap-1 text-xs sm-sm bg-gray-100 px-2 py-1 rounded">
                                 <IconComponent size={12} />
                                 <span className="capitalize">{season}:</span>
                                 <span className="font-semibold">${amount}</span>
@@ -541,7 +528,7 @@ const SynagogueExpenseApp = () => {
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
+                  <div className="grid grid-cols-3 sm-cols-4 md-cols-6 lg-cols-12 gap-2">
                     {months.map((month, index) => {
                       const sponsors = getSponsor(expense.id, index);
                       const progress = getMonthProgress(expense, index);
@@ -550,13 +537,13 @@ const SynagogueExpenseApp = () => {
                       return (
                         <div key={expense.id + '-' + month + '-' + index} className="relative">
                           <button
-                            onClick={() => isFullySponsored ? null : (setSelectedSponsorship({ expenseId: expense.id, month: index }), setShowSponsorForm(true))}
-                            className={'w-full p-2 sm:p-3 rounded text-xs font-medium transition-colors min-h-[100px] ' +
+                            onClick={() => isFullySponsored ? null : (setSelectedSponsorship({ expenseId.id, month}), setShowSponsorForm(true))}
+                            className={'w-full p-2 sm-3 rounded text-xs font-medium transition-colors min-h-[100px] ' +
                               (isFullySponsored
                                 ? 'bg-green-100 text-green-800 border-2 border-green-300' 
-                                : sponsors.length > 0
-                                ? 'bg-yellow-100 text-yellow-800 border-2 border-yellow-300 hover:bg-yellow-50'
-                                : 'bg-gray-50 text-gray-700 border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-300')}
+                                .length > 0
+                                ? 'bg-yellow-100 text-yellow-800 border-2 border-yellow-300 hover-yellow-50'
+                                : 'bg-gray-50 text-gray-700 border-2 border-gray-200 hover-blue-50 hover-blue-300')}
                             disabled={isFullySponsored}
                           >
                             <div className="flex flex-col items-center gap-1 mb-2">
@@ -573,7 +560,7 @@ const SynagogueExpenseApp = () => {
                                 <div className="w-full bg-gray-200 rounded-full h-1.5">
                                   <div 
                                     className={'h-1.5 rounded-full transition-all duration-300 ' + (isFullySponsored ? 'bg-green-500' : 'bg-yellow-500')}
-                                    style={{ width: Math.min(progress.percentage, 100) + '%' }}
+                                    style={{ width.min(progress.percentage, 100) + '%' }}
                                   ></div>
                                 </div>
                                 <div className="text-xs">
@@ -611,7 +598,7 @@ const SynagogueExpenseApp = () => {
                       <Check className="w-8 h-8 text-green-600" />
                     </div>
                     <h3 className="text-xl font-bold text-green-800 mb-2">Payment Submitted!</h3>
-                    <p className="text-gray-600">Your sponsorship has been confirmed.</p>
+                    <p className="text-gray-600">Your sponsorship h confirmed.</p>
                   </div>
                   
                   <div className="bg-gray-50 rounded-lg p-4 mb-6">
@@ -648,7 +635,7 @@ const SynagogueExpenseApp = () => {
                   <div className="space-y-3">
                     <button
                       onClick={() => setShowReceiptText(true)}
-                      className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
+                      className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover-blue-700 flex items-center justify-center gap-2"
                     >
                       <DollarSign size={16} />
                       Get Tax Receipt
@@ -659,7 +646,7 @@ const SynagogueExpenseApp = () => {
                         setShowPaymentConfirmation(false);
                         setLastTransaction(null);
                       }}
-                      className="w-full bg-gray-200 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-300"
+                      className="w-full bg-gray-200 text-gray-700 px-4 py-3 rounded-lg hover-gray-300"
                     >
                       Close
                     </button>
@@ -675,14 +662,14 @@ const SynagogueExpenseApp = () => {
                     <h3 className="text-lg font-bold">Tax Receipt</h3>
                     <button
                       onClick={() => setShowReceiptText(false)}
-                      className="text-gray-500 hover:text-gray-700"
+                      className="text-gray-500 hover-gray-700"
                     >
                       <X size={20} />
                     </button>
                   </div>
                   
                   <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                    <pre className="whitespace-pre-wrap text-sm font-mono">{'CONG. TIFERES YECHEZKEL OF BELED\n1379 58th Street\nBrooklyn, NY 11219\nPhone: (718) 436-8334\nEmail: info@beledsynagogue.org\nTax ID: 11-3090728\n\nTAX RECEIPT\n\nTransaction ID: ' + lastTransaction.id + '\nDate: ' + new Date(lastTransaction.date).toLocaleDateString() + '\nAmount: ">Transaction ID:</span>
+                    <pre className="whitespace-pre-wrap text-sm font-mono">{'CONG. TIFERES YECHEZKEL OF BELED\n1379 58th Street\nBrooklyn, NY 11219\nPhone: (718) 436-8334\nEmail@beledsynagogue.org\nTax ID-3090728\n\nTAX RECEIPT\n\nTransaction ID: ' + lastTransaction.id + '\nDate: ' + new Date(lastTransaction.date).toLocaleDateString() + '\nAmount: ">Transaction ID:</span>
                         <span className="font-mono text-xs">{lastTransaction.id}</span>
                       </div>
                       <div className="flex justify-between">
@@ -692,7 +679,7 @@ const SynagogueExpenseApp = () => {
                   <div className="flex gap-3">
                     <button
                       onClick={() => {
-                        const receiptText = 'CONG. TIFERES YECHEZKEL OF BELED\n1379 58th Street\nBrooklyn, NY 11219\nPhone: (718) 436-8334\nEmail: info@beledsynagogue.org\nTax ID: 11-3090728\n\nTAX RECEIPT\n\nTransaction ID: ' + lastTransaction.id + '\nDate: ' + new Date(lastTransaction.date).toLocaleDateString() + '\nAmount: ">Transaction ID:</span>
+                        const receiptText = 'CONG. TIFERES YECHEZKEL OF BELED\n1379 58th Street\nBrooklyn, NY 11219\nPhone: (718) 436-8334\nEmail@beledsynagogue.org\nTax ID-3090728\n\nTAX RECEIPT\n\nTransaction ID: ' + lastTransaction.id + '\nDate: ' + new Date(lastTransaction.date).toLocaleDateString() + '\nAmount: ">Transaction ID:</span>
                         <span className="font-mono text-xs">{lastTransaction.id}</span>
                       </div>
                       <div className="flex justify-between">
@@ -704,15 +691,15 @@ const SynagogueExpenseApp = () => {
                         textArea.select();
                         document.execCommand('copy');
                         document.body.removeChild(textArea);
-                        alert('Receipt text copied! You can now paste it into any text editor and save as a .txt file.');
+                        alert('Receipt text copied! You can now paste it into any text editor and save  .txt file.');
                       }}
-                      className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                      className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover-blue-700"
                     >
                       Copy Text
                     </button>
                     <button
                       onClick={() => setShowReceiptText(false)}
-                      className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+                      className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover-gray-400"
                     >
                       Close
                     </button>
@@ -722,12 +709,12 @@ const SynagogueExpenseApp = () => {
             )}
 
             {showSponsorForm && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center p-2 sm:p-4 z-50 overflow-y-auto">
-                <div className="bg-white rounded-lg p-4 sm:p-6 w-full max-w-md my-4 sm:my-8">
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start justify-center p-2 sm-4 z-50 overflow-y-auto">
+                <div className="bg-white rounded-lg p-4 sm-6 w-full max-w-md my-4 sm-8">
                   <h3 className="text-lg font-bold mb-4">Sponsor {expenses.find(e => e.id === selectedSponsorship.expenseId)?.name}</h3>
                   <div className="mb-4">
                     <p className="text-gray-600">
-                      Month: {months[selectedSponsorship.month]} {selectedYear}
+                      Month {selectedYear}
                     </p>
                     {(() => {
                       const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
@@ -778,7 +765,7 @@ const SynagogueExpenseApp = () => {
                             <button
                               key={idx}
                               onClick={() => selectUser(user)}
-                              className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-b-0"
+                              className="w-full text-left px-3 py-2 hover-gray-100 border-b border-gray-100 last-b-0"
                             >
                               <div className="font-medium">{user.name}</div>
                               <div className="text-sm text-gray-600">{user.email}</div>
@@ -793,7 +780,7 @@ const SynagogueExpenseApp = () => {
                       <input
                         type="number"
                         value={memberInfo.amount}
-                        onChange={(e) => setMemberInfo(prev => ({ ...prev, amount: e.target.value }))}
+                        onChange={(e) => setMemberInfo(prev => ({ ...prev, amount.target.value }))}
                         className="w-full border rounded-lg px-3 py-2"
                         style={{
                           MozAppearance: 'textfield'
@@ -806,8 +793,8 @@ const SynagogueExpenseApp = () => {
                       <style jsx>{`
                         input[type="number"]::-webkit-outer-spin-button,
                         input[type="number"]::-webkit-inner-spin-button {
-                          -webkit-appearance: none;
-                          margin: 0;
+                          -webkit-appearance;
+                          margin;
                         }
                       `}</style>
                       <p className="text-xs text-gray-500 mt-1">
@@ -824,7 +811,7 @@ const SynagogueExpenseApp = () => {
                       <input
                         type="email"
                         value={memberInfo.email}
-                        onChange={(e) => setMemberInfo(prev => ({ ...prev, email: e.target.value }))}
+                        onChange={(e) => setMemberInfo(prev => ({ ...prev, email.target.value }))}
                         onBlur={(e) => handleFieldValidation('email', e.target.value)}
                         className={'w-full border rounded-lg px-3 py-2 ' + (fieldErrors.email ? 'border-red-300 bg-red-50' : '')}
                         placeholder="your.email@example.com"
@@ -839,7 +826,7 @@ const SynagogueExpenseApp = () => {
                       <input
                         type="tel"
                         value={memberInfo.phone}
-                        onChange={(e) => setMemberInfo(prev => ({ ...prev, phone: e.target.value }))}
+                        onChange={(e) => setMemberInfo(prev => ({ ...prev, phone.target.value }))}
                         onBlur={(e) => handleFieldValidation('phone', e.target.value)}
                         className={'w-full border rounded-lg px-3 py-2 ' + (fieldErrors.phone ? 'border-red-300 bg-red-50' : '')}
                         placeholder="(555) 123-4567"
@@ -854,7 +841,7 @@ const SynagogueExpenseApp = () => {
                       <input
                         type="text"
                         value={memberInfo.dedication}
-                        onChange={(e) => setMemberInfo(prev => ({ ...prev, dedication: e.target.value }))}
+                        onChange={(e) => setMemberInfo(prev => ({ ...prev, dedication.target.value }))}
                         className="w-full border rounded-lg px-3 py-2"
                         placeholder="In memory of... / In honor of..."
                       />
@@ -865,7 +852,7 @@ const SynagogueExpenseApp = () => {
                       <label className="block text-sm font-medium mb-1">Personal Message (optional)</label>
                       <textarea
                         value={memberInfo.message}
-                        onChange={(e) => setMemberInfo(prev => ({ ...prev, message: e.target.value }))}
+                        onChange={(e) => setMemberInfo(prev => ({ ...prev, message.target.value }))}
                         className="w-full border rounded-lg px-3 py-2 h-20 resize-none"
                         placeholder="Add a personal message or note..."
                       />
@@ -886,14 +873,12 @@ const SynagogueExpenseApp = () => {
                               const formattedValue = formatCardNumber(e.target.value, cardType);
                               setMemberInfo(prev => ({ 
                                 ...prev, 
-                                cardNumber: formattedValue,
-                                cardType: cardType
-                              }));
+                                cardNumber,
+                                cardType}));
                             }}
                             onBlur={(e) => handleFieldValidation('cardNumber', e.target.value)}
                             className={'w-full border rounded-lg px-3 py-2 ' + 
-                              (fieldErrors.cardNumber ? 'border-red-300 bg-red-50' : 
-                              memberInfo.cardNumber && memberInfo.cardType && 
+                              (fieldErrors.cardNumber ? 'border-red-300 bg-red-50' .cardNumber && memberInfo.cardType && 
                               validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)
                                 ? 'border-green-300 bg-green-50'
                                 : '')}
@@ -917,7 +902,7 @@ const SynagogueExpenseApp = () => {
                                   formattedValue = value.slice(0, 2) + '/' + value.slice(2, 4);
                                 }
                                 if (formattedValue.length <= 5) {
-                                  setMemberInfo(prev => ({ ...prev, expiryDate: formattedValue }));
+                                  setMemberInfo(prev => ({ ...prev, expiryDate}));
                                 }
                               }}
                               onBlur={(e) => handleFieldValidation('expiryDate', e.target.value)}
@@ -938,7 +923,7 @@ const SynagogueExpenseApp = () => {
                               onChange={(e) => {
                                 const value = e.target.value.replace(/\D/g, '');
                                 if (value.length <= 4) {
-                                  setMemberInfo(prev => ({ ...prev, cvv: value }));
+                                  setMemberInfo(prev => ({ ...prev, cvv}));
                                 }
                               }}
                               onBlur={(e) => handleFieldValidation('cvv', e.target.value)}
@@ -957,9 +942,9 @@ const SynagogueExpenseApp = () => {
                           <input
                             type="text"
                             value={memberInfo.cardholderName || ''}
-                            onChange={(e) => setMemberInfo(prev => ({ ...prev, cardholderName: e.target.value }))}
+                            onChange={(e) => setMemberInfo(prev => ({ ...prev, cardholderName.target.value }))}
                             className="w-full border rounded-lg px-3 py-2"
-                            placeholder="Name as it appears on card"
+                            placeholder="Name  appears on card"
                           />
                         </div>
                       </div>
@@ -970,7 +955,7 @@ const SynagogueExpenseApp = () => {
                         type="checkbox"
                         id="recurring"
                         checked={memberInfo.recurring}
-                        onChange={(e) => setMemberInfo(prev => ({ ...prev, recurring: e.target.checked }))}
+                        onChange={(e) => setMemberInfo(prev => ({ ...prev, recurring.target.checked }))}
                         className="w-4 h-4"
                       />
                       <label htmlFor="recurring" className="text-sm font-medium text-blue-800">
@@ -979,14 +964,14 @@ const SynagogueExpenseApp = () => {
                     </div>
                   </div>
                   
-                  <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                  <div className="flex flex-col sm-row gap-3 mt-6">
                     <button
                       onClick={sponsorExpense}
                       disabled={!memberInfo.name?.trim() || !memberInfo.amount || parseFloat(memberInfo.amount) <= 0 || 
                                !memberInfo.cardNumber?.replace(/\s/g, '') || !memberInfo.expiryDate || 
                                !memberInfo.cvv || !memberInfo.cardholderName?.trim() ||
                                !validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)}
-                      className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
+                      className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover-blue-700 disabled-gray-400 disabled-not-allowed font-medium"
                     >
                       Process Payment & Confirm Sponsorship
                     </button>
@@ -994,14 +979,13 @@ const SynagogueExpenseApp = () => {
                       onClick={() => {
                         setShowSponsorForm(false);
                         setMemberInfo({ 
-                          name: '', email: '', phone: '', dedication: '', message: '', recurring: true, amount: '',
+                          name: '', email: '', phone: '', dedication: '', message: '', recurring, amount: '',
                           cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
-                          billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment: false
-                        });
+                          billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment});
                         setFieldErrors({});
                         setShowUserSuggestions(false);
                       }}
-                      className="flex-1 bg-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-400 font-medium"
+                      className="flex-1 bg-gray-300 text-gray-700 px-4 py-3 rounded-lg hover-gray-400 font-medium"
                     >
                       Cancel
                     </button>
@@ -1019,7 +1003,7 @@ const SynagogueExpenseApp = () => {
               </p>
             </div>
 
-            <div className="bg-white p-4 sm:p-6 rounded-lg border">
+            <div className="bg-white p-4 sm-6 rounded-lg border">
               <h3 className="text-lg font-bold mb-4">Add New Expense</h3>
               <div className="space-y-4">
                 <div>
@@ -1028,8 +1012,8 @@ const SynagogueExpenseApp = () => {
                     type="text"
                     placeholder="Enter expense name"
                     value={newExpense.name}
-                    onChange={(e) => setNewExpense(prev => ({ ...prev, name: e.target.value }))}
-                    className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 text-base focus:border-blue-500 focus:outline-none"
+                    onChange={(e) => setNewExpense(prev => ({ ...prev, name.target.value }))}
+                    className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 text-base focus-blue-500 focus-none"
                   />
                 </div>
                 <div>
@@ -1038,8 +1022,8 @@ const SynagogueExpenseApp = () => {
                     type="number"
                     placeholder="Enter monthly amount"
                     value={newExpense.amount}
-                    onChange={(e) => setNewExpense(prev => ({ ...prev, amount: e.target.value }))}
-                    className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 text-base focus:border-blue-500 focus:outline-none"
+                    onChange={(e) => setNewExpense(prev => ({ ...prev, amount.target.value }))}
+                    className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 text-base focus-blue-500 focus-none"
                     min="0.01"
                     step="0.01"
                   />
@@ -1049,13 +1033,13 @@ const SynagogueExpenseApp = () => {
                   <textarea
                     placeholder="Enter description"
                     value={newExpense.description}
-                    onChange={(e) => setNewExpense(prev => ({ ...prev, description: e.target.value }))}
-                    className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 text-base h-20 resize-none focus:border-blue-500 focus:outline-none"
+                    onChange={(e) => setNewExpense(prev => ({ ...prev, description.target.value }))}
+                    className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 text-base h-20 resize-none focus-blue-500 focus-none"
                   />
                 </div>
                 <button
                   onClick={addExpense}
-                  className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 font-medium"
+                  className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover-green-700 flex items-center justify-center gap-2 font-medium"
                 >
                   <Plus size={16} /> Add Expense
                 </button>
@@ -1077,14 +1061,14 @@ const SynagogueExpenseApp = () => {
                     <div className="flex gap-2">
                       <button
                         onClick={() => deleteExpense(expense.id)}
-                        className="text-red-600 hover:text-red-800 p-1"
+                        className="text-red-600 hover-red-800 p-1"
                       >
                         <Trash2 size={16} />
                       </button>
                     </div>
                   </div>
                   
-                  <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
+                  <div className="mt-4 grid grid-cols-3 sm-cols-4 md-cols-6 lg-cols-12 gap-2">
                     {months.map((month, index) => {
                       const sponsors = getSponsor(expense.id, index);
                       const progress = getMonthProgress(expense, index);
