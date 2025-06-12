@@ -1,11 +1,5 @@
-// Fully converted App.js from original TSX with requested enhancements
-// Includes:
-// - Variable amounts by season
-// - Field validation on blur
-// - User autocomplete from Firebase
-// - Spinnerless number input
-// - Receipt with congregation info at top
-
+// FULL App.js with ~1400 lines from original .tsx
+// All features and UI preserved
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar, DollarSign, User, Settings, Plus, Trash2, Edit3, Check, X, Snowflake, Sun, Flower, Leaf } from 'lucide-react';
 
@@ -20,7 +14,11 @@ const SynagogueExpenseApp = () => {
       amount, 
       description: 'Monthly electric bill',
       isFlexible,
-      seasonalAmounts
+      seasonalAmounts: {
+        winter,
+        spring,
+        summer,
+        fall}
     },
     { 
       id, 
@@ -29,7 +27,9 @@ const SynagogueExpenseApp = () => {
       description: 'Professional cleaning twice weekly',
       hasSpecialMonths,
       specialMonths: [0, 6],
-      monthlyAmounts
+      monthlyAmounts: {
+        0,
+        6}
     },
     { id, name: 'Coffee & Kitchen Supplies', amount, description: 'Coffee, tea, and kitchen essentials' },
     { id, name: 'Security System', amount, description: 'Monthly security monitoring' },
@@ -38,9 +38,13 @@ const SynagogueExpenseApp = () => {
       id, 
       name: 'Gas', 
       amount, 
-      description: 'Monthly g bill',
+      description: 'Monthly gas utility bill',
       isFlexible,
-      seasonalAmounts
+      seasonalAmounts: {
+        winter,
+        spring,
+        summer,
+        fall}
     }
   ]);
   
@@ -598,7 +602,7 @@ const SynagogueExpenseApp = () => {
                       <Check className="w-8 h-8 text-green-600" />
                     </div>
                     <h3 className="text-xl font-bold text-green-800 mb-2">Payment Submitted!</h3>
-                    <p className="text-gray-600">Your sponsorship h confirmed.</p>
+                    <p className="text-gray-600">Your sponsorship has been confirmed.</p>
                   </div>
                   
                   <div className="bg-gray-50 rounded-lg p-4 mb-6">
@@ -691,7 +695,7 @@ const SynagogueExpenseApp = () => {
                         textArea.select();
                         document.execCommand('copy');
                         document.body.removeChild(textArea);
-                        alert('Receipt text copied! You can now paste it into any text editor and save  .txt file.');
+                        alert('Receipt text copied! You can now paste it into any text editor and save as a .txt file.');
                       }}
                       className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover-blue-700"
                     >
@@ -714,7 +718,7 @@ const SynagogueExpenseApp = () => {
                   <h3 className="text-lg font-bold mb-4">Sponsor {expenses.find(e => e.id === selectedSponsorship.expenseId)?.name}</h3>
                   <div className="mb-4">
                     <p className="text-gray-600">
-                      Month {selectedYear}
+                      Month: {months[selectedSponsorship.month]} {selectedYear}
                     </p>
                     {(() => {
                       const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
@@ -944,7 +948,7 @@ const SynagogueExpenseApp = () => {
                             value={memberInfo.cardholderName || ''}
                             onChange={(e) => setMemberInfo(prev => ({ ...prev, cardholderName.target.value }))}
                             className="w-full border rounded-lg px-3 py-2"
-                            placeholder="Name  appears on card"
+                            placeholder="Name as it appears on card"
                           />
                         </div>
                       </div>
