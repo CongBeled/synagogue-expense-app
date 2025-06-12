@@ -716,7 +716,7 @@ const SynagogueExpenseApp = () => {
                       )}
                       <div className="flex justify-between">
                         <span className="text-gray-600">Recurring:</span>
-                        <span>{lastTransaction.recurring ? 'Yes (5 years)' : 'No'}</span>
+                        <span>{lastTransaction.recurring ? 'Yes' : 'No'}</span>
                       </div>
                     </div>
                   </div>
@@ -770,7 +770,7 @@ Expense: ${lastTransaction.expenseName}
 Month: ${lastTransaction.monthName} ${lastTransaction.year}
 ${lastTransaction.dedication ? `Dedication: ${lastTransaction.dedication}` : ''}
 ${lastTransaction.message ? `Message: ${lastTransaction.message}` : ''}
-Recurring: ${lastTransaction.recurring ? 'Yes (5 years)' : 'No'}
+Recurring: ${lastTransaction.recurring ? 'Yes' : 'No'}
 
 This donation is tax-deductible to the full extent allowed by law.
 
@@ -901,6 +901,160 @@ Thank you for your generous support!`}
                         className="w-full border rounded-lg px-3 py-2 h-20 resize-none"
                         placeholder="Add a personal message or note..."
                       />
+                      <p className="text-xs text-gray-500 mt-1">This will be visible when hovering over your sponsorship</p>
+                    </div>
+
+                    <div className="border-t pt-4 mt-4">
+                      <h4 className="text-sm font-semibold text-gray-800 mb-3">Payment Information</h4>
+                      
+                      <div className="grid grid-cols-1 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Payment Method</label>
+                          <div className="grid grid-cols-4 gap-2 mb-3">
+                            {[
+                              { type: 'visa', name: 'Visa', color: 'bg-blue-600' },
+                              { type: 'mastercard', name: 'Mastercard', color: 'bg-red-600' },
+                              { type: 'amex', name: 'Amex', color: 'bg-green-600' },
+                              { type: 'discover', name: 'Discover', color: 'bg-orange-600' }
+                            ].map(card => (
+                              <div
+                                key={card.type}
+                                className={`p-2 rounded text-center text-xs font-medium text-white ${card.color} ${
+                                  memberInfo.cardType === card.type ? 'ring-2 ring-offset-2 ring-gray-400' : 'opacity-60'
+                                }`}
+                              >
+                                {card.name}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Card Number *</label>
+                          <input
+                            type="text"
+                            value={memberInfo.cardNumber || ''}
+                            onChange={(e) => {
+                              const cardType = getCardType(e.target.value);
+                              const formattedValue = formatCardNumber(e.target.value, cardType);
+                              setMemberInfo(prev => ({ 
+                                ...prev, 
+                                cardNumber: formattedValue,
+                                cardType: cardType
+                              }));
+                            }}
+                            className={`w-full border rounded-lg px-3 py-2 ${
+                              memberInfo.cardNumber && memberInfo.cardType && 
+                              !validateCardNumber(memberInfo.cardNumber, memberInfo.cardType) 
+                                ? 'border-red-300 bg-red-50' 
+                                : memberInfo.cardNumber && memberInfo.cardType && 
+                                  validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)
+                                ? 'border-green-300 bg-green-50'
+                                : ''
+                            }`}
+                            placeholder={memberInfo.cardType === 'amex' ? '1234 567890 12345' : '1234 5678 9012 3456'}
+                            maxLength={memberInfo.cardType === 'amex' ? '17' : '19'}
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Expiry Date *</label>
+                            <input
+                              type="text"
+                              value={memberInfo.expiryDate || ''}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, '');
+                                let formattedValue = value;
+                                if (value.length >= 2) {
+                                  formattedValue = value.slice(0, 2) + '/' + value.slice(2, 4);
+                                }
+                                if (formattedValue.length <= 5) {
+                                  setMemberInfo(prev => ({ ...prev, expiryDate: formattedValue }));
+                                }
+                              }}
+                              className="w-full border rounded-lg px-3 py-2"
+                              placeholder="MM/YY"
+                              maxLength="5"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium mb-1">CVV *</label>
+                            <input
+                              type="text"
+                              value={memberInfo.cvv || ''}
+                              onChange={(e) => {
+                                const value = e.target.value.replace(/\D/g, '');
+                                const maxLength = memberInfo.cardType === 'amex' ? 4 : 3;
+                                if (value.length <= maxLength) {
+                                  setMemberInfo(prev => ({ ...prev, cvv: value }));
+                                }
+                              }}
+                              className="w-full border rounded-lg px-3 py-2"
+                              placeholder={memberInfo.cardType === 'amex' ? '1234' : '123'}
+                              maxLength={memberInfo.cardType === 'amex' ? '4' : '3'}
+                            />
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Cardholder Name *</label>
+                          <input
+                            type="text"
+                            value={memberInfo.cardholderName || ''}
+                            onChange={(e) => setMemberInfo(prev => ({ ...prev, cardholderName: e.target.value }))}
+                            className="w-full border rounded-lg px-3 py-2"
+                            placeholder="Name as it appears on card"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Billing Address *</label>
+                          <input
+                            type="text"
+                            value={memberInfo.billingAddress || ''}
+                            onChange={(e) => setMemberInfo(prev => ({ ...prev, billingAddress: e.target.value }))}
+                            className="w-full border rounded-lg px-3 py-2"
+                            placeholder="Street address"
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">City *</label>
+                            <input
+                              type="text"
+                              value={memberInfo.billingCity || ''}
+                              onChange={(e) => setMemberInfo(prev => ({ ...prev, billingCity: e.target.value }))}
+                              className="w-full border rounded-lg px-3 py-2"
+                              placeholder="City"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium mb-1">State *</label>
+                            <input
+                              type="text"
+                              value={memberInfo.billingState || ''}
+                              onChange={(e) => setMemberInfo(prev => ({ ...prev, billingState: e.target.value }))}
+                              className="w-full border rounded-lg px-3 py-2"
+                              placeholder="State"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium mb-1">ZIP Code *</label>
+                          <input
+                            type="text"
+                            value={memberInfo.billingZip || ''}
+                            onChange={(e) => setMemberInfo(prev => ({ ...prev, billingZip: e.target.value }))}
+                            className="w-full border rounded-lg px-3 py-2"
+                            placeholder="ZIP Code"
+                          />
+                        </div>
+                      </div>
                     </div>
                     
                     <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
@@ -912,7 +1066,7 @@ Thank you for your generous support!`}
                         className="w-4 h-4"
                       />
                       <label htmlFor="recurring" className="text-sm font-medium text-blue-800">
-                        Make this an ongoing sponsorship (5 years)
+                        Make this an ongoing sponsorship
                       </label>
                     </div>
                   </div>
@@ -920,10 +1074,15 @@ Thank you for your generous support!`}
                   <div className="flex flex-col sm:flex-row gap-3 mt-6">
                     <button
                       onClick={sponsorExpense}
-                      disabled={!memberInfo.name?.trim() || !memberInfo.amount || parseFloat(memberInfo.amount) <= 0}
+                      disabled={!memberInfo.name?.trim() || !memberInfo.amount || parseFloat(memberInfo.amount) <= 0 || 
+                               !memberInfo.cardNumber?.replace(/\s/g, '') || !memberInfo.expiryDate || 
+                               !memberInfo.cvv || !memberInfo.cardholderName?.trim() ||
+                               !memberInfo.billingAddress?.trim() || !memberInfo.billingCity?.trim() ||
+                               !memberInfo.billingState?.trim() || !memberInfo.billingZip?.trim() ||
+                               !validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)}
                       className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
                     >
-                      Confirm Sponsorship
+                      Process Payment & Confirm Sponsorship
                     </button>
                     <button
                       onClick={() => {
@@ -1119,8 +1278,8 @@ Thank you for your generous support!`}
                               <div className="space-y-1 mt-1">
                                 <div className="text-xs font-bold">${progress.total}</div>
                                 {sponsors.slice(0, 2).map((sponsor, idx) => (
-                                  <div key={`${sponsor.id}-${idx}`} className="truncate text-xs font-medium">
-                                    {sponsor.memberName}
+                                  <div key={`${sponsor.id}-${idx}`} className="truncate text-xs font-medium" title={`${sponsor.memberName} - ${sponsor.amount}${sponsor.dedication ? ` - ${sponsor.dedication}` : ''}`}>
+                                    {sponsor.memberName} (${sponsor.amount})
                                   </div>
                                 ))}
                                 {sponsors.length > 2 && (
@@ -1133,16 +1292,16 @@ Thank you for your generous support!`}
                             <button
                               key={sponsor.id}
                               onClick={() => {
-                                if (confirm(`Remove ${sponsor.memberName}'s sponsorship?`)) {
+                                if (confirm(`Remove ${sponsor.memberName}'s ${sponsor.amount} sponsorship?${sponsor.dedication ? `\nDedication: ${sponsor.dedication}` : ''}`)) {
                                   removeSponsor(sponsor.id);
                                 }
                               }}
-                              className={`absolute bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-xs hover:bg-red-600 ${
+                              className={`absolute bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 font-bold ${
                                 idx === 0 ? '-top-1 -right-1' : 
                                 idx === 1 ? '-top-1 -left-1' :
                                 '-bottom-1 -right-1'
                               }`}
-                              title={`Remove ${sponsor.memberName}'s sponsorship`}
+                              title={`Remove ${sponsor.memberName}'s ${sponsor.amount} sponsorship${sponsor.dedication ? ` - ${sponsor.dedication}` : ''}`}
                               style={{ display: idx < 3 ? 'flex' : 'none' }}
                             >
                               ×
