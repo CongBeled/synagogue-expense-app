@@ -19,9 +19,27 @@ const SynagogueExpenseApp = () => {
   const [expenses, setExpenses] = useState([]);
   const [sponsorships, setSponsorships] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [newExpense, setNewExpense] = useState({ name: '', amount: '', description: '' });
+  const [newExpense, setNewExpense] = useState({ 
+    name: '', 
+    amount: '', 
+    description: '', 
+    isFlexible: false,
+    hasSpecialMonths: false,
+    seasonalAmounts: { winter: '', spring: '', summer: '', fall: '' },
+    specialMonths: [],
+    monthlyAmounts: {}
+  });
   const [editingExpense, setEditingExpense] = useState(null);
-  const [editingValues, setEditingValues] = useState({ name: '', amount: '', description: '' });
+  const [editingValues, setEditingValues] = useState({ 
+    name: '', 
+    amount: '', 
+    description: '',
+    isFlexible: false,
+    hasSpecialMonths: false,
+    seasonalAmounts: { winter: '', spring: '', summer: '', fall: '' },
+    specialMonths: [],
+    monthlyAmounts: {}
+  });
   const [memberInfo, setMemberInfo] = useState({ 
     name: '', email: '', phone: '', dedication: '', message: '', recurring: true, amount: '',
     cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
@@ -62,13 +80,54 @@ const SynagogueExpenseApp = () => {
         // Set default expenses if none exist
         if (expensesData.length === 0) {
           const defaultExpenses = [
-            { name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment\nFor full or partial sponsorship click the month and enter the amount of your choosing', isHighPriority: true },
-            { name: 'Electricity', amount: 350, description: 'Monthly electric bill' },
-            { name: 'Cleaning Services', amount: 400, description: 'Professional cleaning twice weekly' },
-            { name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials' },
-            { name: 'Security System', amount: 200, description: 'Monthly security monitoring' },
-            { name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping' },
-            { name: 'Gas', amount: 200, description: 'Monthly gas utility bill' }
+            { 
+              name: 'Mortgage Payment', 
+              amount: 1500, 
+              description: 'Monthly mortgage payment\nFor full or partial sponsorship click the month and enter the amount of your choosing', 
+              isHighPriority: true,
+              order: 1
+            },
+            { 
+              name: 'Electricity', 
+              amount: 350, 
+              description: 'Monthly electric bill',
+              order: 2,
+              isFlexible: true,
+              seasonalAmounts: {
+                winter: 450,
+                spring: 300,
+                summer: 400,
+                fall: 280
+              }
+            },
+            { 
+              name: 'Cleaning Services', 
+              amount: 400, 
+              description: 'Professional cleaning twice weekly',
+              order: 3,
+              hasSpecialMonths: true,
+              specialMonths: [0, 6],
+              monthlyAmounts: {
+                0: 600,
+                6: 550
+              }
+            },
+            { name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials', order: 4 },
+            { name: 'Security System', amount: 200, description: 'Monthly security monitoring', order: 5 },
+            { name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping', order: 6 },
+            { 
+              name: 'Gas', 
+              amount: 200, 
+              description: 'Monthly gas utility bill',
+              order: 7,
+              isFlexible: true,
+              seasonalAmounts: {
+                winter: 300,
+                spring: 150,
+                summer: 120,
+                fall: 180
+              }
+            }
           ];
           
           for (const expense of defaultExpenses) {
@@ -84,9 +143,9 @@ const SynagogueExpenseApp = () => {
             id: doc.id,
             ...doc.data()
           }));
-          setExpenses(newExpensesData);
+          setExpenses(sortExpenses(newExpensesData));
         } else {
-          setExpenses(expensesData);
+          setExpenses(sortExpenses(expensesData));
         }
 
         // Load sponsorships
@@ -101,15 +160,16 @@ const SynagogueExpenseApp = () => {
       } catch (error) {
         console.error('Error loading data:', error);
         // Fallback to default data if Firebase fails
-        setExpenses([
-          { id: '1', name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment', isHighPriority: true },
-          { id: '2', name: 'Electricity', amount: 350, description: 'Monthly electric bill' },
-          { id: '3', name: 'Cleaning Services', amount: 400, description: 'Professional cleaning twice weekly' },
-          { id: '4', name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials' },
-          { id: '5', name: 'Security System', amount: 200, description: 'Monthly security monitoring' },
-          { id: '6', name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping' },
-          { id: '7', name: 'Gas', amount: 200, description: 'Monthly gas utility bill' }
-        ]);
+        const fallbackExpenses = [
+          { id: '1', name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment', isHighPriority: true, order: 1 },
+          { id: '2', name: 'Electricity', amount: 350, description: 'Monthly electric bill', order: 2 },
+          { id: '3', name: 'Cleaning Services', amount: 400, description: 'Professional cleaning twice weekly', order: 3 },
+          { id: '4', name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials', order: 4 },
+          { id: '5', name: 'Security System', amount: 200, description: 'Monthly security monitoring', order: 5 },
+          { id: '6', name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping', order: 6 },
+          { id: '7', name: 'Gas', amount: 200, description: 'Monthly gas utility bill', order: 7 }
+        ];
+        setExpenses(sortExpenses(fallbackExpenses));
         setSponsorships([]);
         setLoading(false);
       }
@@ -130,6 +190,29 @@ const SynagogueExpenseApp = () => {
 
     return () => unsubscribe();
   }, []);
+
+  const sortExpenses = (expenseList) => {
+    return [...expenseList].sort((a, b) => {
+      // Mortgage Payment always first
+      if (a.name === 'Mortgage Payment') return -1;
+      if (b.name === 'Mortgage Payment') return 1;
+      
+      // If both have order numbers, sort by order
+      if (a.order && b.order) return a.order - b.order;
+      
+      // If only one has order, prioritize it
+      if (a.order && !b.order) return -1;
+      if (!a.order && b.order) return 1;
+      
+      // For new expenses without order, sort by creation date (newest last)
+      if (a.createdAt && b.createdAt) {
+        return new Date(a.createdAt.seconds || a.createdAt) - new Date(b.createdAt.seconds || b.createdAt);
+      }
+      
+      // Fallback to alphabetical
+      return a.name.localeCompare(b.name);
+    });
+  };
 
   const getCurrentHebrewMonth = () => {
     return 8; // Sivan for June 2025
@@ -250,23 +333,58 @@ const SynagogueExpenseApp = () => {
   const addExpense = async () => {
     if (newExpense.name && newExpense.amount && parseFloat(newExpense.amount) > 0) {
       try {
-        const docRef = await addDoc(collection(db, 'expenses'), {
+        // Get the highest order number and add 1 for new expenses
+        const maxOrder = Math.max(...expenses.map(e => e.order || 0), 7);
+        
+        const expenseData = {
           name: newExpense.name.trim(),
           amount: parseFloat(newExpense.amount),
           description: newExpense.description.trim(),
+          order: maxOrder + 1,
           createdAt: new Date()
-        });
+        };
+
+        // Add seasonal amounts if flexible
+        if (newExpense.isFlexible) {
+          expenseData.isFlexible = true;
+          expenseData.seasonalAmounts = {
+            winter: parseFloat(newExpense.seasonalAmounts.winter) || parseFloat(newExpense.amount),
+            spring: parseFloat(newExpense.seasonalAmounts.spring) || parseFloat(newExpense.amount),
+            summer: parseFloat(newExpense.seasonalAmounts.summer) || parseFloat(newExpense.amount),
+            fall: parseFloat(newExpense.seasonalAmounts.fall) || parseFloat(newExpense.amount)
+          };
+        }
+
+        // Add special months if applicable
+        if (newExpense.hasSpecialMonths && newExpense.specialMonths.length > 0) {
+          expenseData.hasSpecialMonths = true;
+          expenseData.specialMonths = newExpense.specialMonths;
+          expenseData.monthlyAmounts = {};
+          newExpense.specialMonths.forEach(monthIndex => {
+            if (newExpense.monthlyAmounts[monthIndex]) {
+              expenseData.monthlyAmounts[monthIndex] = parseFloat(newExpense.monthlyAmounts[monthIndex]);
+            }
+          });
+        }
+        
+        const docRef = await addDoc(collection(db, 'expenses'), expenseData);
         
         const newExpenseObj = {
           id: docRef.id,
-          name: newExpense.name.trim(),
-          amount: parseFloat(newExpense.amount),
-          description: newExpense.description.trim(),
-          createdAt: new Date()
+          ...expenseData
         };
         
-        setExpenses(prev => [newExpenseObj, ...prev]);
-        setNewExpense({ name: '', amount: '', description: '' });
+        setExpenses(prev => sortExpenses([...prev, newExpenseObj]));
+        setNewExpense({ 
+          name: '', 
+          amount: '', 
+          description: '', 
+          isFlexible: false,
+          hasSpecialMonths: false,
+          seasonalAmounts: { winter: '', spring: '', summer: '', fall: '' },
+          specialMonths: [],
+          monthlyAmounts: {}
+        });
         setNewlyAddedExpenseId(docRef.id);
       } catch (error) {
         console.error('Error adding expense:', error);
@@ -278,7 +396,7 @@ const SynagogueExpenseApp = () => {
   const deleteExpense = async (id) => {
     try {
       await deleteDoc(doc(db, 'expenses', id));
-      setExpenses(prev => prev.filter(exp => exp.id !== id));
+      setExpenses(prev => sortExpenses(prev.filter(exp => exp.id !== id)));
       
       // Remove associated sponsorships
       const relatedSponsorships = sponsorships.filter(s => s.expenseId === id);
@@ -301,17 +419,59 @@ const SynagogueExpenseApp = () => {
 
   const updateExpense = async (id, updatedExpense) => {
     try {
-      await updateDoc(doc(db, 'expenses', id), {
+      const updateData = {
         name: updatedExpense.name,
         amount: parseFloat(updatedExpense.amount),
         description: updatedExpense.description
-      });
+      };
+
+      // Handle flexible expenses
+      if (updatedExpense.isFlexible) {
+        updateData.isFlexible = true;
+        updateData.seasonalAmounts = {
+          winter: parseFloat(updatedExpense.seasonalAmounts.winter) || parseFloat(updatedExpense.amount),
+          spring: parseFloat(updatedExpense.seasonalAmounts.spring) || parseFloat(updatedExpense.amount),
+          summer: parseFloat(updatedExpense.seasonalAmounts.summer) || parseFloat(updatedExpense.amount),
+          fall: parseFloat(updatedExpense.seasonalAmounts.fall) || parseFloat(updatedExpense.amount)
+        };
+      } else {
+        updateData.isFlexible = false;
+        // Remove seasonal amounts if no longer flexible
+        updateData.seasonalAmounts = null;
+      }
+
+      // Handle special months
+      if (updatedExpense.hasSpecialMonths && updatedExpense.specialMonths.length > 0) {
+        updateData.hasSpecialMonths = true;
+        updateData.specialMonths = updatedExpense.specialMonths;
+        updateData.monthlyAmounts = {};
+        updatedExpense.specialMonths.forEach(monthIndex => {
+          if (updatedExpense.monthlyAmounts[monthIndex]) {
+            updateData.monthlyAmounts[monthIndex] = parseFloat(updatedExpense.monthlyAmounts[monthIndex]);
+          }
+        });
+      } else {
+        updateData.hasSpecialMonths = false;
+        updateData.specialMonths = [];
+        updateData.monthlyAmounts = {};
+      }
       
-      setExpenses(prev => prev.map(exp => 
-        exp.id === id ? { ...exp, ...updatedExpense, amount: parseFloat(updatedExpense.amount) } : exp
-      ));
+      await updateDoc(doc(db, 'expenses', id), updateData);
+      
+      setExpenses(prev => sortExpenses(prev.map(exp => 
+        exp.id === id ? { ...exp, ...updateData } : exp
+      )));
       setEditingExpense(null);
-      setEditingValues({ name: '', amount: '', description: '' });
+      setEditingValues({ 
+        name: '', 
+        amount: '', 
+        description: '',
+        isFlexible: false,
+        hasSpecialMonths: false,
+        seasonalAmounts: { winter: '', spring: '', summer: '', fall: '' },
+        specialMonths: [],
+        monthlyAmounts: {}
+      });
     } catch (error) {
       console.error('Error updating expense:', error);
       alert('Failed to update expense. Please try again.');
@@ -323,13 +483,32 @@ const SynagogueExpenseApp = () => {
     setEditingValues({
       name: expense.name,
       amount: expense.amount.toString(),
-      description: expense.description
+      description: expense.description,
+      isFlexible: expense.isFlexible || false,
+      hasSpecialMonths: expense.hasSpecialMonths || false,
+      seasonalAmounts: {
+        winter: expense.seasonalAmounts?.winter?.toString() || '',
+        spring: expense.seasonalAmounts?.spring?.toString() || '',
+        summer: expense.seasonalAmounts?.summer?.toString() || '',
+        fall: expense.seasonalAmounts?.fall?.toString() || ''
+      },
+      specialMonths: expense.specialMonths || [],
+      monthlyAmounts: expense.monthlyAmounts || {}
     });
   };
 
   const cancelEditing = () => {
     setEditingExpense(null);
-    setEditingValues({ name: '', amount: '', description: '' });
+    setEditingValues({ 
+      name: '', 
+      amount: '', 
+      description: '',
+      isFlexible: false,
+      hasSpecialMonths: false,
+      seasonalAmounts: { winter: '', spring: '', summer: '', fall: '' },
+      specialMonths: [],
+      monthlyAmounts: {}
+    });
   };
 
   const sponsorExpense = async () => {
@@ -609,8 +788,22 @@ const SynagogueExpenseApp = () => {
                         ))}
                       </div>
                       <div className="text-xl font-bold text-green-600 mt-2">
-                        ${expense.amount.toLocaleString()}/month
+                        {expense.isFlexible || expense.hasSpecialMonths ? 'Variable amounts' : `${expense.amount.toLocaleString()}/month`}
                       </div>
+                      {expense.isFlexible && expense.seasonalAmounts && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {Object.entries(expense.seasonalAmounts).map(([season, amount]) => {
+                            const IconComponent = seasonalIcons[season];
+                            return (
+                              <div key={season} className="flex items-center gap-1 text-xs sm:text-sm bg-gray-100 px-2 py-1 rounded">
+                                <IconComponent size={12} />
+                                <span className="capitalize">{season}:</span>
+                                <span className="font-semibold">${amount}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                   
@@ -845,7 +1038,7 @@ Thank you for your generous support!`}
                         type="number"
                         value={memberInfo.amount}
                         onChange={(e) => setMemberInfo(prev => ({ ...prev, amount: e.target.value }))}
-                        className="w-full border rounded-lg px-3 py-2"
+                        className="w-full border rounded-lg px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         placeholder="Enter amount"
                         min="0.01"
                         step="0.01"
@@ -1148,7 +1341,7 @@ Thank you for your generous support!`}
                     placeholder="Enter monthly amount"
                     value={newExpense.amount}
                     onChange={(e) => setNewExpense(prev => ({ ...prev, amount: e.target.value }))}
-                    className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 text-base focus:border-blue-500 focus:outline-none"
+                    className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 text-base focus:border-blue-500 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     min="0.01"
                     step="0.01"
                   />
@@ -1162,6 +1355,162 @@ Thank you for your generous support!`}
                     className="w-full border-2 border-gray-300 rounded-lg px-3 py-3 text-base h-20 resize-none focus:border-blue-500 focus:outline-none"
                   />
                 </div>
+                
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="isFlexible"
+                    checked={newExpense.isFlexible}
+                    onChange={(e) => setNewExpense(prev => ({ ...prev, isFlexible: e.target.checked }))}
+                    className="w-4 h-4"
+                  />
+                  <label htmlFor="isFlexible" className="text-sm font-medium">
+                    Seasonal amounts (different amounts for each season)
+                  </label>
+                </div>
+                
+                {newExpense.isFlexible && (
+                  <div className="grid grid-cols-2 gap-3 p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        <Leaf size={14} className="inline mr-1" />
+                        Fall Amount
+                      </label>
+                      <input
+                        type="number"
+                        value={newExpense.seasonalAmounts.fall}
+                        onChange={(e) => setNewExpense(prev => ({ 
+                          ...prev, 
+                          seasonalAmounts: { ...prev.seasonalAmounts, fall: e.target.value }
+                        }))}
+                        className="w-full border rounded-lg px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        placeholder="Fall amount"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        <Snowflake size={14} className="inline mr-1" />
+                        Winter Amount
+                      </label>
+                      <input
+                        type="number"
+                        value={newExpense.seasonalAmounts.winter}
+                        onChange={(e) => setNewExpense(prev => ({ 
+                          ...prev, 
+                          seasonalAmounts: { ...prev.seasonalAmounts, winter: e.target.value }
+                        }))}
+                        className="w-full border rounded-lg px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        placeholder="Winter amount"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        <Flower size={14} className="inline mr-1" />
+                        Spring Amount
+                      </label>
+                      <input
+                        type="number"
+                        value={newExpense.seasonalAmounts.spring}
+                        onChange={(e) => setNewExpense(prev => ({ 
+                          ...prev, 
+                          seasonalAmounts: { ...prev.seasonalAmounts, spring: e.target.value }
+                        }))}
+                        className="w-full border rounded-lg px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        placeholder="Spring amount"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        <Sun size={14} className="inline mr-1" />
+                        Summer Amount
+                      </label>
+                      <input
+                        type="number"
+                        value={newExpense.seasonalAmounts.summer}
+                        onChange={(e) => setNewExpense(prev => ({ 
+                          ...prev, 
+                          seasonalAmounts: { ...prev.seasonalAmounts, summer: e.target.value }
+                        }))}
+                        className="w-full border rounded-lg px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        placeholder="Summer amount"
+                      />
+                    </div>
+                  </div>
+                )}
+                
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="hasSpecialMonths"
+                    checked={newExpense.hasSpecialMonths}
+                    onChange={(e) => setNewExpense(prev => ({ ...prev, hasSpecialMonths: e.target.checked }))}
+                    className="w-4 h-4"
+                  />
+                  <label htmlFor="hasSpecialMonths" className="text-sm font-medium">
+                    Special YT months (Tishrei, Nissan with different amounts)
+                  </label>
+                </div>
+                
+                {newExpense.hasSpecialMonths && (
+                  <div className="p-4 bg-orange-50 rounded-lg">
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium mb-2">Select Special Months:</label>
+                      <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                        {months.map((month, index) => (
+                          <label key={index} className="flex items-center gap-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={newExpense.specialMonths.includes(index)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setNewExpense(prev => ({ 
+                                    ...prev, 
+                                    specialMonths: [...prev.specialMonths, index]
+                                  }));
+                                } else {
+                                  setNewExpense(prev => ({ 
+                                    ...prev, 
+                                    specialMonths: prev.specialMonths.filter(m => m !== index)
+                                  }));
+                                }
+                              }}
+                              className="w-3 h-3"
+                            />
+                            {month}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {newExpense.specialMonths.length > 0 && (
+                      <div className="space-y-3">
+                        <h4 className="text-sm font-medium">Set amounts for special months:</h4>
+                        {newExpense.specialMonths.map(monthIndex => (
+                          <div key={monthIndex}>
+                            <label className="block text-sm font-medium mb-1">
+                              <span className="text-orange-600 font-bold text-xs mr-1">$YT</span>
+                              {months[monthIndex]} Amount
+                            </label>
+                            <input
+                              type="number"
+                              value={newExpense.monthlyAmounts[monthIndex] || ''}
+                              onChange={(e) => setNewExpense(prev => ({ 
+                                ...prev, 
+                                monthlyAmounts: { 
+                                  ...prev.monthlyAmounts, 
+                                  [monthIndex]: e.target.value 
+                                }
+                              }))}
+                              className="w-full border rounded-lg px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              placeholder={`Amount for ${months[monthIndex]}`}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+                
                 <button
                   onClick={addExpense}
                   className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 font-medium text-base"
@@ -1196,7 +1545,7 @@ Thank you for your generous support!`}
                         type="number"
                         value={editingValues.amount}
                         onChange={(e) => setEditingValues(prev => ({ ...prev, amount: e.target.value }))}
-                        className="w-full border rounded-lg px-3 py-2"
+                        className="w-full border rounded-lg px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         placeholder="Monthly amount"
                       />
                       <input
@@ -1206,6 +1555,143 @@ Thank you for your generous support!`}
                         className="w-full border rounded-lg px-3 py-2"
                         placeholder="Description"
                       />
+                      
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          id={`editFlexible-${expense.id}`}
+                          checked={editingValues.isFlexible}
+                          onChange={(e) => setEditingValues(prev => ({ ...prev, isFlexible: e.target.checked }))}
+                          className="w-4 h-4"
+                        />
+                        <label htmlFor={`editFlexible-${expense.id}`} className="text-sm font-medium">
+                          Seasonal amounts
+                        </label>
+                      </div>
+                      
+                      {editingValues.isFlexible && (
+                        <div className="grid grid-cols-2 gap-3 p-4 bg-gray-50 rounded-lg">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Fall Amount</label>
+                            <input
+                              type="number"
+                              value={editingValues.seasonalAmounts.fall}
+                              onChange={(e) => setEditingValues(prev => ({ 
+                                ...prev, 
+                                seasonalAmounts: { ...prev.seasonalAmounts, fall: e.target.value }
+                              }))}
+                              className="w-full border rounded-lg px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Winter Amount</label>
+                            <input
+                              type="number"
+                              value={editingValues.seasonalAmounts.winter}
+                              onChange={(e) => setEditingValues(prev => ({ 
+                                ...prev, 
+                                seasonalAmounts: { ...prev.seasonalAmounts, winter: e.target.value }
+                              }))}
+                              className="w-full border rounded-lg px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Spring Amount</label>
+                            <input
+                              type="number"
+                              value={editingValues.seasonalAmounts.spring}
+                              onChange={(e) => setEditingValues(prev => ({ 
+                                ...prev, 
+                                seasonalAmounts: { ...prev.seasonalAmounts, spring: e.target.value }
+                              }))}
+                              className="w-full border rounded-lg px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1">Summer Amount</label>
+                            <input
+                              type="number"
+                              value={editingValues.seasonalAmounts.summer}
+                              onChange={(e) => setEditingValues(prev => ({ 
+                                ...prev, 
+                                seasonalAmounts: { ...prev.seasonalAmounts, summer: e.target.value }
+                              }))}
+                              className="w-full border rounded-lg px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          id={`editSpecial-${expense.id}`}
+                          checked={editingValues.hasSpecialMonths}
+                          onChange={(e) => setEditingValues(prev => ({ ...prev, hasSpecialMonths: e.target.checked }))}
+                          className="w-4 h-4"
+                        />
+                        <label htmlFor={`editSpecial-${expense.id}`} className="text-sm font-medium">
+                          Special YT months
+                        </label>
+                      </div>
+                      
+                      {editingValues.hasSpecialMonths && (
+                        <div className="p-4 bg-orange-50 rounded-lg">
+                          <div className="mb-3">
+                            <label className="block text-sm font-medium mb-2">Select Special Months:</label>
+                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                              {months.map((month, index) => (
+                                <label key={index} className="flex items-center gap-2 text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={editingValues.specialMonths.includes(index)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setEditingValues(prev => ({ 
+                                          ...prev, 
+                                          specialMonths: [...prev.specialMonths, index]
+                                        }));
+                                      } else {
+                                        setEditingValues(prev => ({ 
+                                          ...prev, 
+                                          specialMonths: prev.specialMonths.filter(m => m !== index)
+                                        }));
+                                      }
+                                    }}
+                                    className="w-3 h-3"
+                                  />
+                                  {month}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          
+                          {editingValues.specialMonths.length > 0 && (
+                            <div className="space-y-3">
+                              <h4 className="text-sm font-medium">Set amounts for special months:</h4>
+                              {editingValues.specialMonths.map(monthIndex => (
+                                <div key={monthIndex}>
+                                  <label className="block text-sm font-medium mb-1">
+                                    {months[monthIndex]} Amount
+                                  </label>
+                                  <input
+                                    type="number"
+                                    value={editingValues.monthlyAmounts[monthIndex] || ''}
+                                    onChange={(e) => setEditingValues(prev => ({ 
+                                      ...prev, 
+                                      monthlyAmounts: { 
+                                        ...prev.monthlyAmounts, 
+                                        [monthIndex]: e.target.value 
+                                      }
+                                    }))}
+                                    className="w-full border rounded-lg px-3 py-2 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       
                       <div className="flex gap-2">
                         <button
@@ -1227,7 +1713,23 @@ Thank you for your generous support!`}
                       <div>
                         <h4 className="font-semibold">{expense.name}</h4>
                         <p className="text-gray-600 text-sm">{expense.description}</p>
-                        <p className="font-bold text-green-600 mt-2">${expense.amount.toLocaleString()}/month</p>
+                        <p className="font-bold text-green-600 mt-2">
+                          {expense.isFlexible || expense.hasSpecialMonths ? 'Variable amounts' : `${expense.amount.toLocaleString()}/month`}
+                        </p>
+                        {expense.isFlexible && expense.seasonalAmounts && (
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {Object.entries(expense.seasonalAmounts).map(([season, amount]) => {
+                              const IconComponent = seasonalIcons[season];
+                              return (
+                                <div key={season} className="flex items-center gap-1 text-xs bg-gray-100 px-2 py-1 rounded">
+                                  <IconComponent size={12} />
+                                  <span className="capitalize">{season}:</span>
+                                  <span className="font-semibold">${amount}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                         <p className="text-xs text-gray-500 mt-1">
                           Sponsored: {months.filter((_, index) => {
                             const progress = getMonthProgress(expense, index);
@@ -1269,6 +1771,7 @@ Thank you for your generous support!`}
                               : 'bg-gray-100 text-gray-600 border border-gray-200'
                           }`}>
                             <div className="flex flex-col items-center gap-1 mb-2">
+                              {getMonthIcon(expense, index)}
                               <span className="text-xs font-medium">{month}</span>
                             </div>
                             <div className="text-xs font-bold text-gray-600">
