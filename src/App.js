@@ -1,55 +1,24 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar, DollarSign, User, Settings, Plus, Trash2, Edit3, Check, X, Snowflake, Sun, Flower, Leaf } from 'lucide-react';
+import { db } from './firebase';
+import { 
+  collection, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  getDocs, 
+  onSnapshot,
+  query,
+  orderBy 
+} from 'firebase/firestore';
 
 const SynagogueExpenseApp = () => {
   const [currentView, setCurrentView] = useState('member');
   const [selectedYear, setSelectedYear] = useState(5785);
-  const [expenses, setExpenses] = useState([
-    { id: 1, name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment\nFor full or partial sponsorship click the month and enter the amount of your choosing', isHighPriority: true },
-    { 
-      id: 2, 
-      name: 'Electricity', 
-      amount: 350, 
-      description: 'Monthly electric bill',
-      isFlexible: true,
-      seasonalAmounts: {
-        winter: 450,
-        spring: 300,
-        summer: 400,
-        fall: 280
-      }
-    },
-    { 
-      id: 3, 
-      name: 'Cleaning Services', 
-      amount: 400, 
-      description: 'Professional cleaning twice weekly',
-      hasSpecialMonths: true,
-      specialMonths: [0, 6],
-      monthlyAmounts: {
-        0: 600,
-        6: 550
-      }
-    },
-    { id: 4, name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials' },
-    { id: 5, name: 'Security System', amount: 200, description: 'Monthly security monitoring' },
-    { id: 6, name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping' },
-    { 
-      id: 7, 
-      name: 'Gas', 
-      amount: 200, 
-      description: 'Monthly gas utility bill',
-      isFlexible: true,
-      seasonalAmounts: {
-        winter: 300,
-        spring: 150,
-        summer: 120,
-        fall: 180
-      }
-    }
-  ]);
-  
-  const [sponsorships, setSponsorships] = useState({});
+  const [expenses, setExpenses] = useState([]);
+  const [sponsorships, setSponsorships] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [newExpense, setNewExpense] = useState({ name: '', amount: '', description: '' });
   const [editingExpense, setEditingExpense] = useState(null);
   const [editingValues, setEditingValues] = useState({ name: '', amount: '', description: '' });
@@ -60,18 +29,10 @@ const SynagogueExpenseApp = () => {
   });
   const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
   const [lastTransaction, setLastTransaction] = useState(null);
-  const [showReceiptText, setShowReceiptText] = useState(false);
+  const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [showSponsorForm, setShowSponsorForm] = useState(false);
   const [selectedSponsorship, setSelectedSponsorship] = useState({ expenseId: null, month: null });
   const [newlyAddedExpenseId, setNewlyAddedExpenseId] = useState(null);
-  const [fieldErrors, setFieldErrors] = useState({});
-  const [storedUsers, setStoredUsers] = useState([
-    { name: 'John Doe', email: 'john@example.com', phone: '(555) 123-4567' },
-    { name: 'Jane Smith', email: 'jane@example.com', phone: '(555) 987-6543' },
-    { name: 'David Cohen', email: 'david@example.com', phone: '(555) 456-7890' }
-  ]);
-  const [showUserSuggestions, setShowUserSuggestions] = useState(false);
-  const [userSuggestions, setUserSuggestions] = useState([]);
   const expenseRefs = useRef({});
 
   const months = [
@@ -86,8 +47,92 @@ const SynagogueExpenseApp = () => {
     fall: Leaf
   };
 
+  // Load data from Firebase on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Load expenses
+        const expensesQuery = query(collection(db, 'expenses'), orderBy('createdAt', 'desc'));
+        const expensesSnapshot = await getDocs(expensesQuery);
+        const expensesData = expensesSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        // Set default expenses if none exist
+        if (expensesData.length === 0) {
+          const defaultExpenses = [
+            { name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment\nFor full or partial sponsorship click the month and enter the amount of your choosing', isHighPriority: true },
+            { name: 'Electricity', amount: 350, description: 'Monthly electric bill' },
+            { name: 'Cleaning Services', amount: 400, description: 'Professional cleaning twice weekly' },
+            { name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials' },
+            { name: 'Security System', amount: 200, description: 'Monthly security monitoring' },
+            { name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping' },
+            { name: 'Gas', amount: 200, description: 'Monthly gas utility bill' }
+          ];
+          
+          for (const expense of defaultExpenses) {
+            await addDoc(collection(db, 'expenses'), {
+              ...expense,
+              createdAt: new Date()
+            });
+          }
+          
+          // Reload expenses after adding defaults
+          const newSnapshot = await getDocs(expensesQuery);
+          const newExpensesData = newSnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setExpenses(newExpensesData);
+        } else {
+          setExpenses(expensesData);
+        }
+
+        // Load sponsorships
+        const sponsorshipsSnapshot = await getDocs(collection(db, 'sponsorships'));
+        const sponsorshipsData = sponsorshipsSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setSponsorships(sponsorshipsData);
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        // Fallback to default data if Firebase fails
+        setExpenses([
+          { id: '1', name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment', isHighPriority: true },
+          { id: '2', name: 'Electricity', amount: 350, description: 'Monthly electric bill' },
+          { id: '3', name: 'Cleaning Services', amount: 400, description: 'Professional cleaning twice weekly' },
+          { id: '4', name: 'Coffee & Kitchen Supplies', amount: 150, description: 'Coffee, tea, and kitchen essentials' },
+          { id: '5', name: 'Security System', amount: 200, description: 'Monthly security monitoring' },
+          { id: '6', name: 'Landscaping', amount: 300, description: 'Grounds maintenance and landscaping' },
+          { id: '7', name: 'Gas', amount: 200, description: 'Monthly gas utility bill' }
+        ]);
+        setSponsorships([]);
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Real-time listener for sponsorships
+  useEffect(() => {
+    const unsubscribe = onSnapshot(collection(db, 'sponsorships'), (snapshot) => {
+      const sponsorshipsData = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setSponsorships(sponsorshipsData);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   const getCurrentHebrewMonth = () => {
-    return 8; // Sivan
+    return 8; // Sivan for June 2025
   };
 
   const getCurrentMonthTotals = () => {
@@ -139,76 +184,6 @@ const SynagogueExpenseApp = () => {
     }
   };
 
-  const validateEmail = (email) => {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  };
-
-  const validatePhone = (phone) => {
-    const cleaned = phone.replace(/\D/g, '');
-    return cleaned.length === 10;
-  };
-
-  const validateExpiryDate = (date) => {
-    if (!/^\d{2}\/\d{2}$/.test(date)) return false;
-    const parts = date.split('/');
-    const month = parseInt(parts[0]);
-    const year = parseInt(parts[1]);
-    if (month < 1 || month > 12) return false;
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear() % 100;
-    const currentMonth = currentDate.getMonth() + 1;
-    if (year < currentYear || (year === currentYear && month < currentMonth)) return false;
-    return true;
-  };
-
-  const validateCVV = (cvv, cardType) => {
-    const expectedLength = cardType === 'amex' ? 4 : 3;
-    return cvv.length === expectedLength && /^\d+$/.test(cvv);
-  };
-
-  const handleFieldValidation = (field, value) => {
-    let error = '';
-    
-    if (field === 'email' && value && !validateEmail(value)) {
-      error = 'Please enter a valid email address';
-    } else if (field === 'phone' && value && !validatePhone(value)) {
-      error = 'Please enter a valid 10-digit phone number';
-    } else if (field === 'cardNumber' && value && memberInfo.cardType && !validateCardNumber(value, memberInfo.cardType)) {
-      error = 'Please enter a valid ' + memberInfo.cardType.toUpperCase() + ' card number';
-    } else if (field === 'expiryDate' && value && !validateExpiryDate(value)) {
-      error = 'Please enter a valid expiry date (MM/YY) in the future';
-    } else if (field === 'cvv' && value && memberInfo.cardType && !validateCVV(value, memberInfo.cardType)) {
-      const expectedLength = memberInfo.cardType === 'amex' ? 4 : 3;
-      error = 'Please enter a valid ' + expectedLength + '-digit CVV';
-    }
-    
-    setFieldErrors(prev => ({ ...prev, [field]: error }));
-  };
-
-  const handleNameChange = (value) => {
-    setMemberInfo(prev => ({ ...prev, name: value }));
-    
-    if (value.length > 0) {
-      const suggestions = storedUsers.filter(user => 
-        user.name.toLowerCase().startsWith(value.toLowerCase())
-      );
-      setUserSuggestions(suggestions);
-      setShowUserSuggestions(suggestions.length > 0);
-    } else {
-      setShowUserSuggestions(false);
-    }
-  };
-
-  const selectUser = (user) => {
-    setMemberInfo(prev => ({ 
-      ...prev, 
-      name: user.name, 
-      email: user.email, 
-      phone: user.phone 
-    }));
-    setShowUserSuggestions(false);
-  };
-
   const formatCardNumber = (value, type) => {
     const cleaned = value.replace(/\s/g, '').replace(/\D/g, '');
     if (type === 'amex') {
@@ -238,13 +213,12 @@ const SynagogueExpenseApp = () => {
     return expense.amount;
   };
 
-  const getSponsorshipKey = (expenseId, monthIndex) => {
-    return expenseId + '-' + monthIndex + '-' + selectedYear;
-  };
-
   const getSponsor = (expenseId, monthIndex) => {
-    const sponsorshipArray = sponsorships[getSponsorshipKey(expenseId, monthIndex)];
-    return sponsorshipArray || [];
+    return sponsorships.filter(s => 
+      s.expenseId === expenseId && 
+      s.month === monthIndex && 
+      s.year === selectedYear
+    );
   };
 
   const getMonthTotal = (expenseId, monthIndex) => {
@@ -261,117 +235,187 @@ const SynagogueExpenseApp = () => {
 
   const getMonthIcon = (expense, monthIndex) => {
     if (expense.hasSpecialMonths && expense.specialMonths && expense.specialMonths.includes(monthIndex)) {
-      return React.createElement('span', { className: "text-orange-600 font-bold text-xs" }, '$YT');
+      return <span className="text-orange-600 font-bold text-xs">$YT</span>;
     }
     
     if (expense.isFlexible) {
       const season = getSeasonForMonth(monthIndex);
       const IconComponent = seasonalIcons[season];
-      return React.createElement(IconComponent, { size: 12 });
+      return <IconComponent size={12} />;
     }
     
     return null;
   };
 
-  const addExpense = () => {
+  const addExpense = async () => {
     if (newExpense.name && newExpense.amount && parseFloat(newExpense.amount) > 0) {
-      const expenseId = Date.now() + Math.floor(Math.random() * 1000);
-      const expense = {
-        id: expenseId,
-        name: newExpense.name.trim(),
-        amount: parseFloat(newExpense.amount),
-        description: newExpense.description.trim()
-      };
-      setExpenses(prev => [...prev, expense]);
-      setNewExpense({ name: '', amount: '', description: '' });
-      setNewlyAddedExpenseId(expenseId);
+      try {
+        const docRef = await addDoc(collection(db, 'expenses'), {
+          name: newExpense.name.trim(),
+          amount: parseFloat(newExpense.amount),
+          description: newExpense.description.trim(),
+          createdAt: new Date()
+        });
+        
+        const newExpenseObj = {
+          id: docRef.id,
+          name: newExpense.name.trim(),
+          amount: parseFloat(newExpense.amount),
+          description: newExpense.description.trim(),
+          createdAt: new Date()
+        };
+        
+        setExpenses(prev => [newExpenseObj, ...prev]);
+        setNewExpense({ name: '', amount: '', description: '' });
+        setNewlyAddedExpenseId(docRef.id);
+      } catch (error) {
+        console.error('Error adding expense:', error);
+        alert('Failed to add expense. Please try again.');
+      }
     }
   };
 
-  const deleteExpense = (id) => {
-    setExpenses(prev => prev.filter(exp => exp.id !== id));
-    setSponsorships(prev => {
-      const newSponsorships = { ...prev };
-      Object.keys(newSponsorships).forEach(key => {
-        if (key.startsWith(id + '-')) {
-          delete newSponsorships[key];
-        }
+  const deleteExpense = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'expenses', id));
+      setExpenses(prev => prev.filter(exp => exp.id !== id));
+      
+      // Remove associated sponsorships
+      const relatedSponsorships = sponsorships.filter(s => s.expenseId === id);
+      for (const sponsorship of relatedSponsorships) {
+        await deleteDoc(doc(db, 'sponsorships', sponsorship.id));
+      }
+      
+      if (newlyAddedExpenseId === id) {
+        setNewlyAddedExpenseId(null);
+      }
+      
+      if (expenseRefs.current[id]) {
+        delete expenseRefs.current[id];
+      }
+    } catch (error) {
+      console.error('Error deleting expense:', error);
+      alert('Failed to delete expense. Please try again.');
+    }
+  };
+
+  const updateExpense = async (id, updatedExpense) => {
+    try {
+      await updateDoc(doc(db, 'expenses', id), {
+        name: updatedExpense.name,
+        amount: parseFloat(updatedExpense.amount),
+        description: updatedExpense.description
       });
-      return newSponsorships;
+      
+      setExpenses(prev => prev.map(exp => 
+        exp.id === id ? { ...exp, ...updatedExpense, amount: parseFloat(updatedExpense.amount) } : exp
+      ));
+      setEditingExpense(null);
+      setEditingValues({ name: '', amount: '', description: '' });
+    } catch (error) {
+      console.error('Error updating expense:', error);
+      alert('Failed to update expense. Please try again.');
+    }
+  };
+
+  const startEditing = (expense) => {
+    setEditingExpense(expense.id);
+    setEditingValues({
+      name: expense.name,
+      amount: expense.amount.toString(),
+      description: expense.description
     });
   };
 
-  const sponsorExpense = () => {
+  const cancelEditing = () => {
+    setEditingExpense(null);
+    setEditingValues({ name: '', amount: '', description: '' });
+  };
+
+  const sponsorExpense = async () => {
     if (memberInfo.name?.trim() && selectedSponsorship.expenseId && selectedSponsorship.month !== null && memberInfo.amount) {
       const sponsorAmount = parseFloat(memberInfo.amount);
       
       if (sponsorAmount <= 0) return;
       
-      const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
-      const transactionId = 'TXN-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
-      const transaction = {
-        id: transactionId,
-        date: new Date().toISOString(),
-        memberName: memberInfo.name.trim(),
-        memberEmail: memberInfo.email?.trim() || '',
-        memberPhone: memberInfo.phone?.trim() || '',
-        amount: sponsorAmount,
-        expenseName: expense.name,
-        monthName: months[selectedSponsorship.month],
-        year: selectedYear,
-        dedication: memberInfo.dedication?.trim() || '',
-        message: memberInfo.message?.trim() || '',
-        recurring: memberInfo.recurring,
-        cardType: memberInfo.cardType,
-        lastFourDigits: memberInfo.cardNumber.replace(/\s/g, '').slice(-4)
-      };
-      
-      setLastTransaction(transaction);
-      
-      setSponsorships(prev => {
-        const newSponsorships = { ...prev };
-        const key = selectedSponsorship.expenseId + '-' + selectedSponsorship.month + '-' + selectedYear;
-        if (!newSponsorships[key]) {
-          newSponsorships[key] = [];
-        }
-        newSponsorships[key].push({
-          id: Date.now() + '-' + Math.floor(Math.random() * 10000) + '-' + selectedYear,
+      try {
+        const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
+        const transactionId = `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+        const transaction = {
+          id: transactionId,
+          date: new Date().toISOString(),
           memberName: memberInfo.name.trim(),
           memberEmail: memberInfo.email?.trim() || '',
           memberPhone: memberInfo.phone?.trim() || '',
-          expenseId: selectedSponsorship.expenseId,
-          month: selectedSponsorship.month,
-          year: selectedYear,
           amount: sponsorAmount,
-          recurring: memberInfo.recurring,
+          expenseName: expense.name,
+          monthName: months[selectedSponsorship.month],
+          year: selectedYear,
           dedication: memberInfo.dedication?.trim() || '',
-          message: memberInfo.message?.trim() || ''
+          message: memberInfo.message?.trim() || '',
+          recurring: memberInfo.recurring,
+          cardType: memberInfo.cardType,
+          lastFourDigits: memberInfo.cardNumber.replace(/\s/g, '').slice(-4)
+        };
+        
+        setLastTransaction(transaction);
+        
+        if (memberInfo.recurring) {
+          // Add sponsorship for multiple years
+          for (const year of [5784, 5785, 5786, 5787, 5788]) {
+            await addDoc(collection(db, 'sponsorships'), {
+              expenseId: selectedSponsorship.expenseId,
+              memberName: memberInfo.name.trim(),
+              memberEmail: memberInfo.email?.trim() || '',
+              memberPhone: memberInfo.phone?.trim() || '',
+              month: selectedSponsorship.month,
+              year: year,
+              amount: sponsorAmount,
+              recurring: true,
+              dedication: memberInfo.dedication?.trim() || '',
+              message: memberInfo.message?.trim() || '',
+              createdAt: new Date()
+            });
+          }
+        } else {
+          // Add sponsorship for selected year only
+          await addDoc(collection(db, 'sponsorships'), {
+            expenseId: selectedSponsorship.expenseId,
+            memberName: memberInfo.name.trim(),
+            memberEmail: memberInfo.email?.trim() || '',
+            memberPhone: memberInfo.phone?.trim() || '',
+            month: selectedSponsorship.month,
+            year: selectedYear,
+            amount: sponsorAmount,
+            recurring: false,
+            dedication: memberInfo.dedication?.trim() || '',
+            message: memberInfo.message?.trim() || '',
+            createdAt: new Date()
+          });
+        }
+        
+        setShowSponsorForm(false);
+        setShowPaymentConfirmation(true);
+        setSelectedSponsorship({ expenseId: null, month: null });
+        
+        setMemberInfo({ 
+          name: '', email: '', phone: '', dedication: '', message: '', recurring: true, amount: '',
+          cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
+          billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment: false
         });
-        return newSponsorships;
-      });
-      
-      setShowSponsorForm(false);
-      setShowPaymentConfirmation(true);
-      setSelectedSponsorship({ expenseId: null, month: null });
-      
-      // Store user info for future use
-      const existingUserIndex = storedUsers.findIndex(user => 
-        user.name.toLowerCase() === memberInfo.name.trim().toLowerCase()
-      );
-      if (existingUserIndex === -1) {
-        setStoredUsers(prev => [...prev, {
-          name: memberInfo.name.trim(),
-          email: memberInfo.email?.trim() || '',
-          phone: memberInfo.phone?.trim() || ''
-        }]);
+      } catch (error) {
+        console.error('Error adding sponsorship:', error);
+        alert('Failed to submit sponsorship. Please try again.');
       }
-      
-      setMemberInfo({ 
-        name: '', email: '', phone: '', dedication: '', message: '', recurring: true, amount: '',
-        cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
-        billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment: false
-      });
-      setFieldErrors({});
+    }
+  };
+
+  const removeSponsor = async (sponsorshipId) => {
+    try {
+      await deleteDoc(doc(db, 'sponsorships', sponsorshipId));
+    } catch (error) {
+      console.error('Error removing sponsorship:', error);
+      alert('Failed to remove sponsorship. Please try again.');
     }
   };
 
@@ -384,6 +428,44 @@ const SynagogueExpenseApp = () => {
       return total + yearTotal;
     }, 0);
   };
+
+  const getTotalSponsored = () => {
+    return sponsorships
+      .filter(s => s.year === selectedYear)
+      .reduce((total, sponsorship) => total + sponsorship.amount, 0);
+  };
+
+  useEffect(() => {
+    if (newlyAddedExpenseId && expenseRefs.current[newlyAddedExpenseId]) {
+      const timeoutId = setTimeout(() => {
+        const element = expenseRefs.current[newlyAddedExpenseId];
+        if (element) {
+          element.scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+          });
+        }
+        const clearId = setTimeout(() => setNewlyAddedExpenseId(null), 1000);
+        return () => clearTimeout(clearId);
+      }, 100);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [newlyAddedExpenseId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading sponsorship data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const currentMonthData = getCurrentMonthTotals();
+  const isFullySponsored = currentMonthData.percentage >= 100;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -401,15 +483,21 @@ const SynagogueExpenseApp = () => {
             <div className="flex gap-2 w-full sm:w-auto">
               <button
                 onClick={() => setCurrentView('member')}
-                className={'flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm ' + 
-                  (currentView === 'member' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')}
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm ${
+                  currentView === 'member' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
               >
                 <User size={16} /> Member
               </button>
               <button
                 onClick={() => setCurrentView('admin')}
-                className={'flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm ' +
-                  (currentView === 'admin' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')}
+                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm ${
+                  currentView === 'admin' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
               >
                 <Settings size={16} /> Admin
               </button>
@@ -428,65 +516,62 @@ const SynagogueExpenseApp = () => {
               </p>
             </div>
 
-            {(() => {
-              const currentMonthData = getCurrentMonthTotals();
-              const isFullySponsored = currentMonthData.percentage >= 100;
+            <div className="bg-white border rounded-lg p-6 shadow-sm">
+              <h3 className="text-lg font-bold text-gray-800 mb-3">
+                Progress this Month - {currentMonthData.currentMonthName} {selectedYear}
+              </h3>
               
-              return (
-                <div className="bg-white border rounded-lg p-6 shadow-sm">
-                  <h3 className="text-lg font-bold text-gray-800 mb-3">
-                    Progress this Month - {currentMonthData.currentMonthName} {selectedYear}
-                  </h3>
-                  
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600">Total Monthly Expenses:</span>
-                      <span className="font-bold text-gray-800">${currentMonthData.totalExpenseForMonth.toLocaleString()}</span>
+              <div className="space-y-4">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-gray-600">Total Monthly Expenses:</span>
+                  <span className="font-bold text-gray-800">${currentMonthData.totalExpenseForMonth.toLocaleString()}</span>
+                </div>
+                
+                <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                  <div 
+                    className={`h-4 rounded-full transition-all duration-500 ${
+                      isFullySponsored ? 'bg-green-500' : 'bg-blue-500'
+                    }`}
+                    style={{ width: `${currentMonthData.percentage}%` }}
+                  ></div>
+                </div>
+                
+                <div className="flex justify-between items-center">
+                  <div className="text-sm">
+                    <div className={`font-bold ${isFullySponsored ? 'text-green-600' : 'text-blue-600'}`}>
+                      ${currentMonthData.totalSponsoredForMonth.toLocaleString()} sponsored
                     </div>
-                    
-                    <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                      <div 
-                        className={'h-4 rounded-full transition-all duration-500 ' + (isFullySponsored ? 'bg-green-500' : 'bg-blue-500')}
-                        style={{ width: currentMonthData.percentage + '%' }}
-                      ></div>
-                    </div>
-                    
-                    <div className="flex justify-between items-center">
-                      <div className="text-sm">
-                        <div className={'font-bold ' + (isFullySponsored ? 'text-green-600' : 'text-blue-600')}>
-                          ${currentMonthData.totalSponsoredForMonth.toLocaleString()} sponsored
-                        </div>
-                        <div className="text-gray-600">
-                          {Math.round(currentMonthData.percentage)}% complete
-                        </div>
-                      </div>
-                      
-                      {!isFullySponsored && (
-                        <div className="text-sm text-right">
-                          <div className="font-bold text-orange-600">
-                            ${currentMonthData.remainingForMonth.toLocaleString()} remaining
-                          </div>
-                          <div className="text-gray-600">
-                            {Math.round(100 - currentMonthData.percentage)}% to go
-                          </div>
-                        </div>
-                      )}
-                      
-                      {isFullySponsored && (
-                        <div className="text-sm text-right">
-                          <div className="font-bold text-green-600">
-                            ✓ Fully Sponsored!
-                          </div>
-                          <div className="text-green-600">
-                            Thank you for your support
-                          </div>
-                        </div>
-                      )}
+                    {currentMonthData.totalSponsoredForMonth > 0 && !isFullySponsored && (
+                      <div className="text-black">Thank you</div>
+                    )}
+                    <div className="text-gray-600">
+                      {Math.round(currentMonthData.percentage)}% complete
                     </div>
                   </div>
+                  
+                  {!isFullySponsored && (
+                    <div className="text-sm text-right">
+                      <div className="font-bold text-orange-600">
+                        ${currentMonthData.remainingForMonth.toLocaleString()} remaining
+                      </div>
+                      {currentMonthData.totalSponsoredForMonth > 0 && (
+                        <div className="text-black">Rak B'Achdus</div>
+                      )}
+                      <div className="text-gray-600">
+                        {Math.round(100 - currentMonthData.percentage)}% to go
+                      </div>
+                    </div>
+                  )}
+                  
+                  {isFullySponsored && (
+                    <div className="text-sm text-right">
+                      <div className="font-bold text-green-600">✓ Fully Sponsored!</div>
+                      <div className="text-green-600">Thank you for your support</div>
+                    </div>
+                  )}
                 </div>
-              );
-            })()}
+              </div>
+            </div>
 
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
               <div>
@@ -509,35 +594,23 @@ const SynagogueExpenseApp = () => {
 
             <div className="grid gap-6">
               {expenses.map(expense => (
-                <div key={expense.id} className={'bg-white border rounded-lg p-6 shadow-sm ' + (expense.isHighPriority ? 'border-blue-400 bg-blue-50' : '')}>
+                <div key={expense.id} className={`bg-white border rounded-lg p-6 shadow-sm ${expense.isHighPriority ? 'border-blue-400 bg-blue-50' : ''}`}>
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className={'text-lg font-semibold ' + (expense.isHighPriority ? 'text-blue-800' : 'text-gray-800')}>{expense.name}</h3>
+                        <h3 className={`text-lg font-semibold ${expense.isHighPriority ? 'text-blue-800' : 'text-gray-800'}`}>{expense.name}</h3>
                         {expense.isHighPriority && <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full font-medium">Priority</span>}
                       </div>
                       <div className="mt-2">
-                        {expense.description.split('\n').map((line, index) => (
-                          <p key={index} className={'text-sm ' + (index === 0 ? 'text-gray-600' : 'text-blue-700 font-semibold')}>{line}</p>
+                        {expense.description && expense.description.split('\n').map((line, index) => (
+                          <p key={index} className={`text-sm ${
+                            index === 0 ? 'text-gray-600' : 'text-blue-700 font-semibold'
+                          }`}>{line}</p>
                         ))}
                       </div>
                       <div className="text-xl font-bold text-green-600 mt-2">
-                        {expense.isFlexible || expense.hasSpecialMonths ? 'Variable amounts' : '$' + expense.amount.toLocaleString() + '/month'}
+                        ${expense.amount.toLocaleString()}/month
                       </div>
-                      {expense.isFlexible && expense.seasonalAmounts && (
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          {Object.entries(expense.seasonalAmounts).map(([season, amount]) => {
-                            const IconComponent = seasonalIcons[season];
-                            return (
-                              <div key={season} className="flex items-center gap-1 text-xs sm:text-sm bg-gray-100 px-2 py-1 rounded">
-                                <IconComponent size={12} />
-                                <span className="capitalize">{season}:</span>
-                                <span className="font-semibold">${amount}</span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
                     </div>
                   </div>
                   
@@ -548,15 +621,16 @@ const SynagogueExpenseApp = () => {
                       const isFullySponsored = progress.percentage >= 100;
                       
                       return (
-                        <div key={expense.id + '-' + month + '-' + index} className="relative">
+                        <div key={`${expense.id}-${month}-${index}`} className="relative">
                           <button
                             onClick={() => isFullySponsored ? null : (setSelectedSponsorship({ expenseId: expense.id, month: index }), setShowSponsorForm(true))}
-                            className={'w-full p-2 sm:p-3 rounded text-xs font-medium transition-colors min-h-[100px] ' +
-                              (isFullySponsored
+                            className={`w-full p-2 sm:p-3 rounded text-xs font-medium transition-colors min-h-[100px] ${
+                              isFullySponsored
                                 ? 'bg-green-100 text-green-800 border-2 border-green-300' 
                                 : sponsors.length > 0
                                 ? 'bg-yellow-100 text-yellow-800 border-2 border-yellow-300 hover:bg-yellow-50'
-                                : 'bg-gray-50 text-gray-700 border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-300')}
+                                : 'bg-gray-50 text-gray-700 border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-300'
+                            }`}
                             disabled={isFullySponsored}
                           >
                             <div className="flex flex-col items-center gap-1 mb-2">
@@ -572,8 +646,10 @@ const SynagogueExpenseApp = () => {
                               <div className="mt-1 space-y-1">
                                 <div className="w-full bg-gray-200 rounded-full h-1.5">
                                   <div 
-                                    className={'h-1.5 rounded-full transition-all duration-300 ' + (isFullySponsored ? 'bg-green-500' : 'bg-yellow-500')}
-                                    style={{ width: Math.min(progress.percentage, 100) + '%' }}
+                                    className={`h-1.5 rounded-full transition-all duration-300 ${
+                                      isFullySponsored ? 'bg-green-500' : 'bg-yellow-500'
+                                    }`}
+                                    style={{ width: `${Math.min(progress.percentage, 100)}%` }}
                                   ></div>
                                 </div>
                                 <div className="text-xs">
@@ -584,7 +660,7 @@ const SynagogueExpenseApp = () => {
                                 </div>
                                 <div className="text-xs space-y-0.5">
                                   {sponsors.slice(0, 2).map((sponsor, idx) => (
-                                    <div key={sponsor.id + '-' + idx} className="truncate">
+                                    <div key={`${sponsor.id}-${idx}`} className="truncate" title={`${sponsor.memberName} - ${sponsor.amount}${sponsor.dedication ? ` - ${sponsor.dedication}` : ''}`}>
                                       {sponsor.memberName} (${sponsor.amount})
                                     </div>
                                   ))}
@@ -611,14 +687,14 @@ const SynagogueExpenseApp = () => {
                       <Check className="w-8 h-8 text-green-600" />
                     </div>
                     <h3 className="text-xl font-bold text-green-800 mb-2">Payment Submitted!</h3>
-                    <p className="text-gray-600">Your sponsorship has been confirmed.</p>
+                    <p className="text-gray-600">Your sponsorship has been confirmed and saved to our database.</p>
                   </div>
                   
                   <div className="bg-gray-50 rounded-lg p-4 mb-6">
                     <div className="text-sm space-y-2">
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Amount:</span>
-                        <span className="font-bold">${lastTransaction.amount.toLocaleString()}</span>
+                        <span className="text-gray-600">Transaction ID:</span>
+                        <span className="font-mono text-xs">{lastTransaction.id}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Expense:</span>
@@ -629,8 +705,8 @@ const SynagogueExpenseApp = () => {
                         <span>{lastTransaction.monthName} {lastTransaction.year}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Card:</span>
-                        <span className="capitalize">{lastTransaction.cardType} ****{lastTransaction.lastFourDigits}</span>
+                        <span className="text-gray-600">Amount:</span>
+                        <span className="font-bold">${lastTransaction.amount.toLocaleString()}</span>
                       </div>
                       {lastTransaction.dedication && (
                         <div className="flex justify-between">
@@ -647,11 +723,10 @@ const SynagogueExpenseApp = () => {
                   
                   <div className="space-y-3">
                     <button
-                      onClick={() => setShowReceiptText(true)}
+                      onClick={() => setShowReceiptModal(true)}
                       className="w-full bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 flex items-center justify-center gap-2"
                     >
-                      <DollarSign size={16} />
-                      Get Tax Receipt
+                      📄 View Receipt
                     </button>
                     
                     <button
@@ -668,55 +743,55 @@ const SynagogueExpenseApp = () => {
               </div>
             )}
 
-            {showReceiptText && lastTransaction && (
+            {showReceiptModal && lastTransaction && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-lg font-bold">Tax Receipt</h3>
-                    <button
-                      onClick={() => setShowReceiptText(false)}
-                      className="text-gray-500 hover:text-gray-700"
-                    >
-                      <X size={20} />
-                    </button>
-                  </div>
+                <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <h3 className="text-xl font-bold text-green-800 mb-4">Tax Receipt</h3>
                   
-                  <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                    <pre className="whitespace-pre-wrap text-sm font-mono">{'CONG. TIFERES YECHEZKEL OF BELED\n1379 58th Street\nBrooklyn, NY 11219\nPhone: (718) 436-8334\nEmail: info@beledsynagogue.org\nTax ID: 11-3090728\n\nTAX RECEIPT\n\nTransaction ID: ' + lastTransaction.id + '\nDate: ' + new Date(lastTransaction.date).toLocaleDateString() + '\nAmount: ">Transaction ID:</span>
-                        <span className="font-mono text-xs">{lastTransaction.id}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 + lastTransaction.amount.toLocaleString() + '\nDonor: ' + lastTransaction.memberName + '\nEmail: ' + (lastTransaction.memberEmail || 'Not provided') + '\nPhone: ' + (lastTransaction.memberPhone || 'Not provided') + '\nExpense: ' + lastTransaction.expenseName + '\nMonth: ' + lastTransaction.monthName + ' ' + lastTransaction.year + '\n' + (lastTransaction.dedication ? 'Dedication: ' + lastTransaction.dedication + '\n' : '') + (lastTransaction.message ? 'Message: ' + lastTransaction.message + '\n' : '') + 'Recurring: ' + (lastTransaction.recurring ? 'Yes' : 'No') + '\n\nThis donation is tax-deductible to the full extent allowed by law.\n\nThank you for your generous support!'}</pre>
-                  </div>
-                  
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        const receiptText = 'CONG. TIFERES YECHEZKEL OF BELED\n1379 58th Street\nBrooklyn, NY 11219\nPhone: (718) 436-8334\nEmail: info@beledsynagogue.org\nTax ID: 11-3090728\n\nTAX RECEIPT\n\nTransaction ID: ' + lastTransaction.id + '\nDate: ' + new Date(lastTransaction.date).toLocaleDateString() + '\nAmount: ">Transaction ID:</span>
-                        <span className="font-mono text-xs">{lastTransaction.id}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600 + lastTransaction.amount.toLocaleString() + '\nDonor: ' + lastTransaction.memberName + '\nEmail: ' + (lastTransaction.memberEmail || 'Not provided') + '\nPhone: ' + (lastTransaction.memberPhone || 'Not provided') + '\nExpense: ' + lastTransaction.expenseName + '\nMonth: ' + lastTransaction.monthName + ' ' + lastTransaction.year + '\n' + (lastTransaction.dedication ? 'Dedication: ' + lastTransaction.dedication + '\n' : '') + (lastTransaction.message ? 'Message: ' + lastTransaction.message + '\n' : '') + 'Recurring: ' + (lastTransaction.recurring ? 'Yes' : 'No') + '\n\nThis donation is tax-deductible to the full extent allowed by law.\n\nThank you for your generous support!';
+                  <div className="bg-gray-50 border rounded-lg p-4 mb-4">
+                    <textarea 
+                      readOnly
+                      value={`Cong. Tiferes Yechezkel of Beled
+1379 58th Street
+Brooklyn, NY 11219
+Phone: (718) 436-8334
+Email: congbeled@gmail.com
+Tax ID: 11-3090728
 
-                        const textArea = document.createElement('textarea');
-                        textArea.value = receiptText;
-                        document.body.appendChild(textArea);
-                        textArea.select();
-                        document.execCommand('copy');
-                        document.body.removeChild(textArea);
-                        alert('Receipt text copied! You can now paste it into any text editor and save as a .txt file.');
-                      }}
-                      className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
-                    >
-                      Copy Text
-                    </button>
+TAX RECEIPT
+
+Transaction ID: ${lastTransaction.id}
+Date: ${new Date(lastTransaction.date).toLocaleDateString()}
+Amount: ${lastTransaction.amount.toLocaleString()}
+Donor: ${lastTransaction.memberName}
+Email: ${lastTransaction.memberEmail || 'Not provided'}
+Phone: ${lastTransaction.memberPhone || 'Not provided'}
+Expense: ${lastTransaction.expenseName}
+Month: ${lastTransaction.monthName} ${lastTransaction.year}
+${lastTransaction.dedication ? `Dedication: ${lastTransaction.dedication}` : ''}
+${lastTransaction.message ? `Message: ${lastTransaction.message}` : ''}
+Recurring: ${lastTransaction.recurring ? 'Yes' : 'No'}
+
+This donation is tax-deductible to the full extent allowed by law.
+
+Thank you for your generous support!`}
+                      className="w-full h-80 text-sm font-mono bg-white border rounded p-3 resize-none"
+                      onClick={(e) => e.target.select()}
+                    />
+                  </div>
+                  
+                  <div className="flex justify-center">
                     <button
-                      onClick={() => setShowReceiptText(false)}
-                      className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400"
+                      onClick={() => setShowReceiptModal(false)}
+                      className="bg-gray-200 text-gray-700 px-6 py-3 rounded-lg hover:bg-gray-300"
                     >
                       Close
                     </button>
                   </div>
+                  
+                  <p className="text-sm text-gray-600 mt-3 text-center">
+                    Click in the text area above to select all text, then copy and save as needed
+                  </p>
                 </div>
               </div>
             )}
@@ -732,21 +807,11 @@ const SynagogueExpenseApp = () => {
                     {(() => {
                       const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
                       const progress = getMonthProgress(expense, selectedSponsorship.month);
-                      const isSpecialMonth = expense.hasSpecialMonths && expense.specialMonths && 
-                                           expense.specialMonths.includes(selectedSponsorship.month);
                       return (
                         <div>
-                          <div className="flex items-center gap-2">
-                            {getMonthIcon(expense, selectedSponsorship.month)}
-                            <p className="text-gray-600">
-                              Monthly cost: ${progress.expenseAmount.toLocaleString()}
-                            </p>
-                          </div>
-                          {isSpecialMonth && (
-                            <p className="text-orange-600 text-sm mt-1">
-                              This is a $YT month with special costs
-                            </p>
-                          )}
+                          <p className="text-gray-600">
+                            Monthly cost: ${progress.expenseAmount.toLocaleString()}
+                          </p>
                           {progress.total > 0 && (
                             <div className="mt-2">
                               <p className="text-sm text-gray-600">
@@ -763,29 +828,15 @@ const SynagogueExpenseApp = () => {
                   </div>
                   
                   <div className="space-y-4">
-                    <div className="relative">
+                    <div>
                       <label className="block text-sm font-medium mb-1">Your Name *</label>
                       <input
                         type="text"
                         value={memberInfo.name}
-                        onChange={(e) => handleNameChange(e.target.value)}
+                        onChange={(e) => setMemberInfo(prev => ({ ...prev, name: e.target.value }))}
                         className="w-full border rounded-lg px-3 py-2"
                         placeholder="Enter your name"
                       />
-                      {showUserSuggestions && (
-                        <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg mt-1 shadow-lg">
-                          {userSuggestions.map((user, idx) => (
-                            <button
-                              key={idx}
-                              onClick={() => selectUser(user)}
-                              className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-b-0"
-                            >
-                              <div className="font-medium">{user.name}</div>
-                              <div className="text-sm text-gray-600">{user.email}</div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
                     </div>
                     
                     <div>
@@ -795,21 +846,10 @@ const SynagogueExpenseApp = () => {
                         value={memberInfo.amount}
                         onChange={(e) => setMemberInfo(prev => ({ ...prev, amount: e.target.value }))}
                         className="w-full border rounded-lg px-3 py-2"
-                        style={{
-                          MozAppearance: 'textfield'
-                        }}
-                        onWheel={(e) => e.target.blur()}
                         placeholder="Enter amount"
                         min="0.01"
                         step="0.01"
                       />
-                      <style jsx>{`
-                        input[type="number"]::-webkit-outer-spin-button,
-                        input[type="number"]::-webkit-inner-spin-button {
-                          -webkit-appearance: none;
-                          margin: 0;
-                        }
-                      `}</style>
                       <p className="text-xs text-gray-500 mt-1">
                         Up to full amount of ${(() => {
                           const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
@@ -825,13 +865,9 @@ const SynagogueExpenseApp = () => {
                         type="email"
                         value={memberInfo.email}
                         onChange={(e) => setMemberInfo(prev => ({ ...prev, email: e.target.value }))}
-                        onBlur={(e) => handleFieldValidation('email', e.target.value)}
-                        className={'w-full border rounded-lg px-3 py-2 ' + (fieldErrors.email ? 'border-red-300 bg-red-50' : '')}
+                        className="w-full border rounded-lg px-3 py-2"
                         placeholder="your.email@example.com"
                       />
-                      {fieldErrors.email && (
-                        <p className="text-xs text-red-600 mt-1">{fieldErrors.email}</p>
-                      )}
                     </div>
                     
                     <div>
@@ -840,13 +876,9 @@ const SynagogueExpenseApp = () => {
                         type="tel"
                         value={memberInfo.phone}
                         onChange={(e) => setMemberInfo(prev => ({ ...prev, phone: e.target.value }))}
-                        onBlur={(e) => handleFieldValidation('phone', e.target.value)}
-                        className={'w-full border rounded-lg px-3 py-2 ' + (fieldErrors.phone ? 'border-red-300 bg-red-50' : '')}
+                        className="w-full border rounded-lg px-3 py-2"
                         placeholder="(555) 123-4567"
                       />
-                      {fieldErrors.phone && (
-                        <p className="text-xs text-red-600 mt-1">{fieldErrors.phone}</p>
-                      )}
                     </div>
                     
                     <div>
@@ -875,7 +907,28 @@ const SynagogueExpenseApp = () => {
                     <div className="border-t pt-4 mt-4">
                       <h4 className="text-sm font-semibold text-gray-800 mb-3">Payment Information</h4>
                       
-                      <div className="space-y-3">
+                      <div className="grid grid-cols-1 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Payment Method</label>
+                          <div className="grid grid-cols-4 gap-2 mb-3">
+                            {[
+                              { type: 'visa', name: 'Visa', color: 'bg-blue-600' },
+                              { type: 'mastercard', name: 'Mastercard', color: 'bg-red-600' },
+                              { type: 'amex', name: 'Amex', color: 'bg-green-600' },
+                              { type: 'discover', name: 'Discover', color: 'bg-orange-600' }
+                            ].map(card => (
+                              <div
+                                key={card.type}
+                                className={`p-2 rounded text-center text-xs font-medium text-white ${card.color} ${
+                                  memberInfo.cardType === card.type ? 'ring-2 ring-offset-2 ring-gray-400' : 'opacity-60'
+                                }`}
+                              >
+                                {card.name}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        
                         <div>
                           <label className="block text-sm font-medium mb-1">Card Number *</label>
                           <input
@@ -890,18 +943,18 @@ const SynagogueExpenseApp = () => {
                                 cardType: cardType
                               }));
                             }}
-                            onBlur={(e) => handleFieldValidation('cardNumber', e.target.value)}
-                            className={'w-full border rounded-lg px-3 py-2 ' + 
-                              (fieldErrors.cardNumber ? 'border-red-300 bg-red-50' : 
+                            className={`w-full border rounded-lg px-3 py-2 ${
                               memberInfo.cardNumber && memberInfo.cardType && 
-                              validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)
+                              !validateCardNumber(memberInfo.cardNumber, memberInfo.cardType) 
+                                ? 'border-red-300 bg-red-50' 
+                                : memberInfo.cardNumber && memberInfo.cardType && 
+                                  validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)
                                 ? 'border-green-300 bg-green-50'
-                                : '')}
-                            placeholder="1234 5678 9012 3456"
+                                : ''
+                            }`}
+                            placeholder={memberInfo.cardType === 'amex' ? '1234 567890 12345' : '1234 5678 9012 3456'}
+                            maxLength={memberInfo.cardType === 'amex' ? '17' : '19'}
                           />
-                          {fieldErrors.cardNumber && (
-                            <p className="text-xs text-red-600 mt-1">{fieldErrors.cardNumber}</p>
-                          )}
                         </div>
                         
                         <div className="grid grid-cols-2 gap-3">
@@ -920,14 +973,10 @@ const SynagogueExpenseApp = () => {
                                   setMemberInfo(prev => ({ ...prev, expiryDate: formattedValue }));
                                 }
                               }}
-                              onBlur={(e) => handleFieldValidation('expiryDate', e.target.value)}
-                              className={'w-full border rounded-lg px-3 py-2 ' + (fieldErrors.expiryDate ? 'border-red-300 bg-red-50' : '')}
+                              className="w-full border rounded-lg px-3 py-2"
                               placeholder="MM/YY"
                               maxLength="5"
                             />
-                            {fieldErrors.expiryDate && (
-                              <p className="text-xs text-red-600 mt-1">{fieldErrors.expiryDate}</p>
-                            )}
                           </div>
                           
                           <div>
@@ -937,18 +986,15 @@ const SynagogueExpenseApp = () => {
                               value={memberInfo.cvv || ''}
                               onChange={(e) => {
                                 const value = e.target.value.replace(/\D/g, '');
-                                if (value.length <= 4) {
+                                const maxLength = memberInfo.cardType === 'amex' ? 4 : 3;
+                                if (value.length <= maxLength) {
                                   setMemberInfo(prev => ({ ...prev, cvv: value }));
                                 }
                               }}
-                              onBlur={(e) => handleFieldValidation('cvv', e.target.value)}
-                              className={'w-full border rounded-lg px-3 py-2 ' + (fieldErrors.cvv ? 'border-red-300 bg-red-50' : '')}
-                              placeholder="123"
-                              maxLength="4"
+                              className="w-full border rounded-lg px-3 py-2"
+                              placeholder={memberInfo.cardType === 'amex' ? '1234' : '123'}
+                              maxLength={memberInfo.cardType === 'amex' ? '4' : '3'}
                             />
-                            {fieldErrors.cvv && (
-                              <p className="text-xs text-red-600 mt-1">{fieldErrors.cvv}</p>
-                            )}
                           </div>
                         </div>
                         
@@ -960,6 +1006,52 @@ const SynagogueExpenseApp = () => {
                             onChange={(e) => setMemberInfo(prev => ({ ...prev, cardholderName: e.target.value }))}
                             className="w-full border rounded-lg px-3 py-2"
                             placeholder="Name as it appears on card"
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Billing Address *</label>
+                          <input
+                            type="text"
+                            value={memberInfo.billingAddress || ''}
+                            onChange={(e) => setMemberInfo(prev => ({ ...prev, billingAddress: e.target.value }))}
+                            className="w-full border rounded-lg px-3 py-2"
+                            placeholder="Street address"
+                          />
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm font-medium mb-1">City *</label>
+                            <input
+                              type="text"
+                              value={memberInfo.billingCity || ''}
+                              onChange={(e) => setMemberInfo(prev => ({ ...prev, billingCity: e.target.value }))}
+                              className="w-full border rounded-lg px-3 py-2"
+                              placeholder="City"
+                            />
+                          </div>
+                          
+                          <div>
+                            <label className="block text-sm font-medium mb-1">State *</label>
+                            <input
+                              type="text"
+                              value={memberInfo.billingState || ''}
+                              onChange={(e) => setMemberInfo(prev => ({ ...prev, billingState: e.target.value }))}
+                              className="w-full border rounded-lg px-3 py-2"
+                              placeholder="State"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <label className="block text-sm font-medium mb-1">ZIP Code *</label>
+                          <input
+                            type="text"
+                            value={memberInfo.billingZip || ''}
+                            onChange={(e) => setMemberInfo(prev => ({ ...prev, billingZip: e.target.value }))}
+                            className="w-full border rounded-lg px-3 py-2"
+                            placeholder="ZIP Code"
                           />
                         </div>
                       </div>
@@ -985,6 +1077,8 @@ const SynagogueExpenseApp = () => {
                       disabled={!memberInfo.name?.trim() || !memberInfo.amount || parseFloat(memberInfo.amount) <= 0 || 
                                !memberInfo.cardNumber?.replace(/\s/g, '') || !memberInfo.expiryDate || 
                                !memberInfo.cvv || !memberInfo.cardholderName?.trim() ||
+                               !memberInfo.billingAddress?.trim() || !memberInfo.billingCity?.trim() ||
+                               !memberInfo.billingState?.trim() || !memberInfo.billingZip?.trim() ||
                                !validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)}
                       className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
                     >
@@ -998,8 +1092,6 @@ const SynagogueExpenseApp = () => {
                           cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
                           billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment: false
                         });
-                        setFieldErrors({});
-                        setShowUserSuggestions(false);
                       }}
                       className="flex-1 bg-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-400 font-medium"
                     >
@@ -1015,8 +1107,25 @@ const SynagogueExpenseApp = () => {
             <div className="bg-purple-50 p-6 rounded-lg border-l-4 border-purple-500">
               <h2 className="text-xl font-bold text-purple-800 mb-2">Administrator Dashboard</h2>
               <p className="text-purple-700">
-                Manage expenses and view sponsorship status.
+                Manage expenses and view sponsorship status. All data is automatically saved to Firebase.
               </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white p-4 rounded-lg border">
+                <div className="text-2xl font-bold text-blue-600">${getTotalSponsored().toLocaleString()}</div>
+                <div className="text-sm text-gray-600">Total Sponsored ({selectedYear})</div>
+              </div>
+              <div className="bg-white p-4 rounded-lg border">
+                <div className="text-2xl font-bold text-green-600">${getTotalAnnualExpenses().toLocaleString()}</div>
+                <div className="text-sm text-gray-600">Annual Expense Total</div>
+              </div>
+              <div className="bg-white p-4 rounded-lg border">
+                <div className="text-2xl font-bold text-orange-600">
+                  {getTotalAnnualExpenses() > 0 ? Math.round((getTotalSponsored() / getTotalAnnualExpenses()) * 100) : 0}%
+                </div>
+                <div className="text-sm text-gray-600">Sponsored Coverage</div>
+              </div>
             </div>
 
             <div className="bg-white p-4 sm:p-6 rounded-lg border">
@@ -1055,7 +1164,7 @@ const SynagogueExpenseApp = () => {
                 </div>
                 <button
                   onClick={addExpense}
-                  className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 font-medium"
+                  className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 flex items-center justify-center gap-2 font-medium text-base"
                 >
                   <Plus size={16} /> Add Expense
                 </button>
@@ -1065,24 +1174,87 @@ const SynagogueExpenseApp = () => {
             <div className="space-y-4">
               <h3 className="text-lg font-bold">Current Expenses</h3>
               {expenses.map(expense => (
-                <div key={expense.id} className="bg-white border rounded-lg p-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h4 className="font-semibold">{expense.name}</h4>
-                      <p className="text-gray-600 text-sm">{expense.description}</p>
-                      <div className="mt-2">
-                        <p className="font-bold text-green-600">${expense.amount.toLocaleString()}/month</p>
+                <div 
+                  key={expense.id} 
+                  ref={el => expenseRefs.current[expense.id] = el}
+                  className={`bg-white border rounded-lg p-4 transition-all duration-500 ${
+                    newlyAddedExpenseId === expense.id 
+                      ? 'border-green-400 bg-green-50 shadow-lg' 
+                      : 'border-gray-200'
+                  }`}
+                >
+                  {editingExpense === expense.id ? (
+                    <div className="space-y-3">
+                      <input
+                        type="text"
+                        value={editingValues.name}
+                        onChange={(e) => setEditingValues(prev => ({ ...prev, name: e.target.value }))}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="Expense name"
+                      />
+                      <input
+                        type="number"
+                        value={editingValues.amount}
+                        onChange={(e) => setEditingValues(prev => ({ ...prev, amount: e.target.value }))}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="Monthly amount"
+                      />
+                      <input
+                        type="text"
+                        value={editingValues.description}
+                        onChange={(e) => setEditingValues(prev => ({ ...prev, description: e.target.value }))}
+                        className="w-full border rounded-lg px-3 py-2"
+                        placeholder="Description"
+                      />
+                      
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => updateExpense(expense.id, editingValues)}
+                          className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 flex items-center gap-1"
+                        >
+                          <Check size={14} /> Save
+                        </button>
+                        <button
+                          onClick={cancelEditing}
+                          className="bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700 flex items-center gap-1"
+                        >
+                          <X size={14} /> Cancel
+                        </button>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => deleteExpense(expense.id)}
-                        className="text-red-600 hover:text-red-800 p-1"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                  ) : (
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="font-semibold">{expense.name}</h4>
+                        <p className="text-gray-600 text-sm">{expense.description}</p>
+                        <p className="font-bold text-green-600 mt-2">${expense.amount.toLocaleString()}/month</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Sponsored: {months.filter((_, index) => {
+                            const progress = getMonthProgress(expense, index);
+                            return progress.percentage >= 100;
+                          }).length}/12 months fully sponsored
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => startEditing(expense)}
+                          className="text-blue-600 hover:text-blue-800 p-1"
+                        >
+                          <Edit3 size={16} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (confirm('Are you sure you want to delete this expense? This will also remove all associated sponsorships.')) {
+                              deleteExpense(expense.id);
+                            }
+                          }}
+                          className="text-red-600 hover:text-red-800 p-1"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )}
                   
                   <div className="mt-4 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
                     {months.map((month, index) => {
@@ -1090,11 +1262,12 @@ const SynagogueExpenseApp = () => {
                       const progress = getMonthProgress(expense, index);
                       const isSponsored = sponsors.length > 0;
                       return (
-                        <div key={expense.id + '-' + month + '-' + index} className="relative">
-                          <div className={'p-2 rounded text-xs text-center min-h-[80px] ' + 
-                            (isSponsored
+                        <div key={`${expense.id}-${month}-${index}`} className="relative">
+                          <div className={`p-2 rounded text-xs text-center min-h-[80px] ${
+                            isSponsored
                               ? 'bg-green-100 text-green-800 border border-green-300' 
-                              : 'bg-gray-100 text-gray-600 border border-gray-200')}>
+                              : 'bg-gray-100 text-gray-600 border border-gray-200'
+                          }`}>
                             <div className="flex flex-col items-center gap-1 mb-2">
                               <span className="text-xs font-medium">{month}</span>
                             </div>
@@ -1105,8 +1278,8 @@ const SynagogueExpenseApp = () => {
                               <div className="space-y-1 mt-1">
                                 <div className="text-xs font-bold">${progress.total}</div>
                                 {sponsors.slice(0, 2).map((sponsor, idx) => (
-                                  <div key={sponsor.id + '-' + idx} className="truncate text-xs font-medium">
-                                    {sponsor.memberName}
+                                  <div key={`${sponsor.id}-${idx}`} className="truncate text-xs font-medium" title={`${sponsor.memberName} - ${sponsor.amount}${sponsor.dedication ? ` - ${sponsor.dedication}` : ''}`}>
+                                    {sponsor.memberName} (${sponsor.amount})
                                   </div>
                                 ))}
                                 {sponsors.length > 2 && (
@@ -1115,6 +1288,25 @@ const SynagogueExpenseApp = () => {
                               </div>
                             )}
                           </div>
+                          {isSponsored && sponsors.map((sponsor, idx) => (
+                            <button
+                              key={sponsor.id}
+                              onClick={() => {
+                                if (confirm(`Remove ${sponsor.memberName}'s ${sponsor.amount} sponsorship?${sponsor.dedication ? `\nDedication: ${sponsor.dedication}` : ''}`)) {
+                                  removeSponsor(sponsor.id);
+                                }
+                              }}
+                              className={`absolute bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600 font-bold ${
+                                idx === 0 ? '-top-1 -right-1' : 
+                                idx === 1 ? '-top-1 -left-1' :
+                                '-bottom-1 -right-1'
+                              }`}
+                              title={`Remove ${sponsor.memberName}'s ${sponsor.amount} sponsorship${sponsor.dedication ? ` - ${sponsor.dedication}` : ''}`}
+                              style={{ display: idx < 3 ? 'flex' : 'none' }}
+                            >
+                              ×
+                            </button>
+                          ))}
                         </div>
                       );
                     })}
