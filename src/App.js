@@ -55,7 +55,8 @@ const SynagogueExpenseApp = () => {
   const [editingValues, setEditingValues] = useState({ name: '', amount: '', description: '' });
   const [memberInfo, setMemberInfo] = useState({ 
     name: '', email: '', phone: '', dedication: '', message: '', recurring: true, amount: '',
-    cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', cardType: ''
+    cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
+    billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment: false
   });
   const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
   const [lastTransaction, setLastTransaction] = useState(null);
@@ -63,6 +64,14 @@ const SynagogueExpenseApp = () => {
   const [showSponsorForm, setShowSponsorForm] = useState(false);
   const [selectedSponsorship, setSelectedSponsorship] = useState({ expenseId: null, month: null });
   const [newlyAddedExpenseId, setNewlyAddedExpenseId] = useState(null);
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [storedUsers, setStoredUsers] = useState([
+    { name: 'John Doe', email: 'john@example.com', phone: '(555) 123-4567' },
+    { name: 'Jane Smith', email: 'jane@example.com', phone: '(555) 987-6543' },
+    { name: 'David Cohen', email: 'david@example.com', phone: '(555) 456-7890' }
+  ]);
+  const [showUserSuggestions, setShowUserSuggestions] = useState(false);
+  const [userSuggestions, setUserSuggestions] = useState([]);
   const expenseRefs = useRef({});
 
   const months = [
@@ -114,6 +123,92 @@ const SynagogueExpenseApp = () => {
     return '';
   };
 
+  const validateCardNumber = (number, type) => {
+    const cleaned = number.replace(/\s/g, '');
+    switch (type) {
+      case 'visa':
+        return /^4\d{15}$/.test(cleaned);
+      case 'mastercard':
+        return /^5[1-5]\d{14}$/.test(cleaned);
+      case 'amex':
+        return /^3[47]\d{13}$/.test(cleaned);
+      case 'discover':
+        return /^6(?:011|5\d{2})\d{12}$/.test(cleaned);
+      default:
+        return false;
+    }
+  };
+
+  const validateEmail = (email) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
+  const validatePhone = (phone) => {
+    const cleaned = phone.replace(/\D/g, '');
+    return cleaned.length === 10;
+  };
+
+  const validateExpiryDate = (date) => {
+    if (!/^\d{2}\/\d{2}$/.test(date)) return false;
+    const parts = date.split('/');
+    const month = parseInt(parts[0]);
+    const year = parseInt(parts[1]);
+    if (month < 1 || month > 12) return false;
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear() % 100;
+    const currentMonth = currentDate.getMonth() + 1;
+    if (year < currentYear || (year === currentYear && month < currentMonth)) return false;
+    return true;
+  };
+
+  const validateCVV = (cvv, cardType) => {
+    const expectedLength = cardType === 'amex' ? 4 : 3;
+    return cvv.length === expectedLength && /^\d+$/.test(cvv);
+  };
+
+  const handleFieldValidation = (field, value) => {
+    let error = '';
+    
+    if (field === 'email' && value && !validateEmail(value)) {
+      error = 'Please enter a valid email address';
+    } else if (field === 'phone' && value && !validatePhone(value)) {
+      error = 'Please enter a valid 10-digit phone number';
+    } else if (field === 'cardNumber' && value && memberInfo.cardType && !validateCardNumber(value, memberInfo.cardType)) {
+      error = 'Please enter a valid ' + memberInfo.cardType.toUpperCase() + ' card number';
+    } else if (field === 'expiryDate' && value && !validateExpiryDate(value)) {
+      error = 'Please enter a valid expiry date (MM/YY) in the future';
+    } else if (field === 'cvv' && value && memberInfo.cardType && !validateCVV(value, memberInfo.cardType)) {
+      const expectedLength = memberInfo.cardType === 'amex' ? 4 : 3;
+      error = 'Please enter a valid ' + expectedLength + '-digit CVV';
+    }
+    
+    setFieldErrors(prev => ({ ...prev, [field]: error }));
+  };
+
+  const handleNameChange = (value) => {
+    setMemberInfo(prev => ({ ...prev, name: value }));
+    
+    if (value.length > 0) {
+      const suggestions = storedUsers.filter(user => 
+        user.name.toLowerCase().startsWith(value.toLowerCase())
+      );
+      setUserSuggestions(suggestions);
+      setShowUserSuggestions(suggestions.length > 0);
+    } else {
+      setShowUserSuggestions(false);
+    }
+  };
+
+  const selectUser = (user) => {
+    setMemberInfo(prev => ({ 
+      ...prev, 
+      name: user.name, 
+      email: user.email, 
+      phone: user.phone 
+    }));
+    setShowUserSuggestions(false);
+  };
+
   const formatCardNumber = (value, type) => {
     const cleaned = value.replace(/\s/g, '').replace(/\D/g, '');
     if (type === 'amex') {
@@ -144,7 +239,7 @@ const SynagogueExpenseApp = () => {
   };
 
   const getSponsorshipKey = (expenseId, monthIndex) => {
-    return `${expenseId}-${monthIndex}-${selectedYear}`;
+    return expenseId + '-' + monthIndex + '-' + selectedYear;
   };
 
   const getSponsor = (expenseId, monthIndex) => {
@@ -166,13 +261,13 @@ const SynagogueExpenseApp = () => {
 
   const getMonthIcon = (expense, monthIndex) => {
     if (expense.hasSpecialMonths && expense.specialMonths && expense.specialMonths.includes(monthIndex)) {
-      return <span className="text-orange-600 font-bold text-xs">$YT</span>;
+      return React.createElement('span', { className: "text-orange-600 font-bold text-xs" }, '$YT');
     }
     
     if (expense.isFlexible) {
       const season = getSeasonForMonth(monthIndex);
       const IconComponent = seasonalIcons[season];
-      return <IconComponent size={12} />;
+      return React.createElement(IconComponent, { size: 12 });
     }
     
     return null;
@@ -198,7 +293,7 @@ const SynagogueExpenseApp = () => {
     setSponsorships(prev => {
       const newSponsorships = { ...prev };
       Object.keys(newSponsorships).forEach(key => {
-        if (key.startsWith(`${id}-`)) {
+        if (key.startsWith(id + '-')) {
           delete newSponsorships[key];
         }
       });
@@ -213,7 +308,7 @@ const SynagogueExpenseApp = () => {
       if (sponsorAmount <= 0) return;
       
       const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
-      const transactionId = `TXN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const transactionId = 'TXN-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
       const transaction = {
         id: transactionId,
         date: new Date().toISOString(),
@@ -235,12 +330,12 @@ const SynagogueExpenseApp = () => {
       
       setSponsorships(prev => {
         const newSponsorships = { ...prev };
-        const key = `${selectedSponsorship.expenseId}-${selectedSponsorship.month}-${selectedYear}`;
+        const key = selectedSponsorship.expenseId + '-' + selectedSponsorship.month + '-' + selectedYear;
         if (!newSponsorships[key]) {
           newSponsorships[key] = [];
         }
         newSponsorships[key].push({
-          id: `${Date.now()}-${Math.floor(Math.random() * 10000)}-${selectedYear}`,
+          id: Date.now() + '-' + Math.floor(Math.random() * 10000) + '-' + selectedYear,
           memberName: memberInfo.name.trim(),
           memberEmail: memberInfo.email?.trim() || '',
           memberPhone: memberInfo.phone?.trim() || '',
@@ -259,10 +354,24 @@ const SynagogueExpenseApp = () => {
       setShowPaymentConfirmation(true);
       setSelectedSponsorship({ expenseId: null, month: null });
       
+      // Store user info for future use
+      const existingUserIndex = storedUsers.findIndex(user => 
+        user.name.toLowerCase() === memberInfo.name.trim().toLowerCase()
+      );
+      if (existingUserIndex === -1) {
+        setStoredUsers(prev => [...prev, {
+          name: memberInfo.name.trim(),
+          email: memberInfo.email?.trim() || '',
+          phone: memberInfo.phone?.trim() || ''
+        }]);
+      }
+      
       setMemberInfo({ 
         name: '', email: '', phone: '', dedication: '', message: '', recurring: true, amount: '',
-        cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', cardType: ''
+        cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
+        billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment: false
       });
+      setFieldErrors({});
     }
   };
 
@@ -292,21 +401,15 @@ const SynagogueExpenseApp = () => {
             <div className="flex gap-2 w-full sm:w-auto">
               <button
                 onClick={() => setCurrentView('member')}
-                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm ${
-                  currentView === 'member' 
-                    ? 'bg-blue-600 text-white' 
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
+                className={'flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm ' + 
+                  (currentView === 'member' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')}
               >
                 <User size={16} /> Member
               </button>
               <button
                 onClick={() => setCurrentView('admin')}
-                className={`flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm ${
-                  currentView === 'admin' 
-                    ? 'bg-purple-600 text-white' 
-                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                }`}
+                className={'flex-1 sm:flex-none px-3 sm:px-4 py-2 rounded-lg flex items-center justify-center gap-2 transition-colors text-sm ' +
+                  (currentView === 'admin' ? 'bg-purple-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')}
               >
                 <Settings size={16} /> Admin
               </button>
@@ -343,16 +446,14 @@ const SynagogueExpenseApp = () => {
                     
                     <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
                       <div 
-                        className={`h-4 rounded-full transition-all duration-500 ${
-                          isFullySponsored ? 'bg-green-500' : 'bg-blue-500'
-                        }`}
-                        style={{ width: `${currentMonthData.percentage}%` }}
+                        className={'h-4 rounded-full transition-all duration-500 ' + (isFullySponsored ? 'bg-green-500' : 'bg-blue-500')}
+                        style={{ width: currentMonthData.percentage + '%' }}
                       ></div>
                     </div>
                     
                     <div className="flex justify-between items-center">
                       <div className="text-sm">
-                        <div className={`font-bold ${isFullySponsored ? 'text-green-600' : 'text-blue-600'}`}>
+                        <div className={'font-bold ' + (isFullySponsored ? 'text-green-600' : 'text-blue-600')}>
                           ${currentMonthData.totalSponsoredForMonth.toLocaleString()} sponsored
                         </div>
                         <div className="text-gray-600">
@@ -408,24 +509,35 @@ const SynagogueExpenseApp = () => {
 
             <div className="grid gap-6">
               {expenses.map(expense => (
-                <div key={expense.id} className={`bg-white border rounded-lg p-6 shadow-sm ${expense.isHighPriority ? 'border-blue-400 bg-blue-50' : ''}`}>
+                <div key={expense.id} className={'bg-white border rounded-lg p-6 shadow-sm ' + (expense.isHighPriority ? 'border-blue-400 bg-blue-50' : '')}>
                   <div className="flex justify-between items-start mb-4">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h3 className={`text-lg font-semibold ${expense.isHighPriority ? 'text-blue-800' : 'text-gray-800'}`}>{expense.name}</h3>
+                        <h3 className={'text-lg font-semibold ' + (expense.isHighPriority ? 'text-blue-800' : 'text-gray-800')}>{expense.name}</h3>
                         {expense.isHighPriority && <span className="bg-blue-600 text-white text-xs px-2 py-1 rounded-full font-medium">Priority</span>}
                       </div>
                       <div className="mt-2">
                         {expense.description.split('\n').map((line, index) => (
-                          <p key={index} className={`text-sm ${
-                            index === 0 ? 'text-gray-600' : 
-                            'text-blue-700 font-semibold'
-                          }`}>{line}</p>
+                          <p key={index} className={'text-sm ' + (index === 0 ? 'text-gray-600' : 'text-blue-700 font-semibold')}>{line}</p>
                         ))}
                       </div>
                       <div className="text-xl font-bold text-green-600 mt-2">
-                        {expense.isFlexible || expense.hasSpecialMonths ? 'Variable amounts' : `$${expense.amount.toLocaleString()}/month`}
+                        {expense.isFlexible || expense.hasSpecialMonths ? 'Variable amounts' : '$' + expense.amount.toLocaleString() + '/month'}
                       </div>
+                      {expense.isFlexible && expense.seasonalAmounts && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {Object.entries(expense.seasonalAmounts).map(([season, amount]) => {
+                            const IconComponent = seasonalIcons[season];
+                            return (
+                              <div key={season} className="flex items-center gap-1 text-xs sm:text-sm bg-gray-100 px-2 py-1 rounded">
+                                <IconComponent size={12} />
+                                <span className="capitalize">{season}:</span>
+                                <span className="font-semibold">${amount}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   </div>
                   
@@ -436,16 +548,15 @@ const SynagogueExpenseApp = () => {
                       const isFullySponsored = progress.percentage >= 100;
                       
                       return (
-                        <div key={`${expense.id}-${month}-${index}`} className="relative">
+                        <div key={expense.id + '-' + month + '-' + index} className="relative">
                           <button
                             onClick={() => isFullySponsored ? null : (setSelectedSponsorship({ expenseId: expense.id, month: index }), setShowSponsorForm(true))}
-                            className={`w-full p-2 sm:p-3 rounded text-xs font-medium transition-colors min-h-[100px] ${
-                              isFullySponsored
+                            className={'w-full p-2 sm:p-3 rounded text-xs font-medium transition-colors min-h-[100px] ' +
+                              (isFullySponsored
                                 ? 'bg-green-100 text-green-800 border-2 border-green-300' 
                                 : sponsors.length > 0
                                 ? 'bg-yellow-100 text-yellow-800 border-2 border-yellow-300 hover:bg-yellow-50'
-                                : 'bg-gray-50 text-gray-700 border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-300'
-                            }`}
+                                : 'bg-gray-50 text-gray-700 border-2 border-gray-200 hover:bg-blue-50 hover:border-blue-300')}
                             disabled={isFullySponsored}
                           >
                             <div className="flex flex-col items-center gap-1 mb-2">
@@ -461,10 +572,8 @@ const SynagogueExpenseApp = () => {
                               <div className="mt-1 space-y-1">
                                 <div className="w-full bg-gray-200 rounded-full h-1.5">
                                   <div 
-                                    className={`h-1.5 rounded-full transition-all duration-300 ${
-                                      isFullySponsored ? 'bg-green-500' : 'bg-yellow-500'
-                                    }`}
-                                    style={{ width: `${Math.min(progress.percentage, 100)}%` }}
+                                    className={'h-1.5 rounded-full transition-all duration-300 ' + (isFullySponsored ? 'bg-green-500' : 'bg-yellow-500')}
+                                    style={{ width: Math.min(progress.percentage, 100) + '%' }}
                                   ></div>
                                 </div>
                                 <div className="text-xs">
@@ -475,7 +584,7 @@ const SynagogueExpenseApp = () => {
                                 </div>
                                 <div className="text-xs space-y-0.5">
                                   {sponsors.slice(0, 2).map((sponsor, idx) => (
-                                    <div key={`${sponsor.id}-${idx}`} className="truncate">
+                                    <div key={sponsor.id + '-' + idx} className="truncate">
                                       {sponsor.memberName} (${sponsor.amount})
                                     </div>
                                   ))}
@@ -508,10 +617,6 @@ const SynagogueExpenseApp = () => {
                   <div className="bg-gray-50 rounded-lg p-4 mb-6">
                     <div className="text-sm space-y-2">
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Transaction ID:</span>
-                        <span className="font-mono text-xs">{lastTransaction.id}</span>
-                      </div>
-                      <div className="flex justify-between">
                         <span className="text-gray-600">Amount:</span>
                         <span className="font-bold">${lastTransaction.amount.toLocaleString()}</span>
                       </div>
@@ -522,6 +627,20 @@ const SynagogueExpenseApp = () => {
                       <div className="flex justify-between">
                         <span className="text-gray-600">Month:</span>
                         <span>{lastTransaction.monthName} {lastTransaction.year}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Card:</span>
+                        <span className="capitalize">{lastTransaction.cardType} ****{lastTransaction.lastFourDigits}</span>
+                      </div>
+                      {lastTransaction.dedication && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Dedication:</span>
+                          <span className="text-right">{lastTransaction.dedication}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Recurring:</span>
+                        <span>{lastTransaction.recurring ? 'Yes' : 'No'}</span>
                       </div>
                     </div>
                   </div>
@@ -563,59 +682,21 @@ const SynagogueExpenseApp = () => {
                   </div>
                   
                   <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                    <pre className="whitespace-pre-wrap text-sm font-mono">{`CONG. TIFERES YECHEZKEL OF BELED - Tax Receipt
-
-Transaction ID: ${lastTransaction.id}
-Date: ${new Date(lastTransaction.date).toLocaleDateString()}
-Amount: $${lastTransaction.amount.toLocaleString()}
-Donor: ${lastTransaction.memberName}
-Email: ${lastTransaction.memberEmail || 'Not provided'}
-Phone: ${lastTransaction.memberPhone || 'Not provided'}
-Expense: ${lastTransaction.expenseName}
-Month: ${lastTransaction.monthName} ${lastTransaction.year}
-${lastTransaction.dedication ? `Dedication: ${lastTransaction.dedication}` : ''}
-${lastTransaction.message ? `Message: ${lastTransaction.message}` : ''}
-Recurring: ${lastTransaction.recurring ? 'Yes' : 'No'}
-
-This donation is tax-deductible to the full extent allowed by law.
-Tax ID: 11-3090728
-
-Thank you for your generous support!
-
-Cong. Tiferes Yechezkel of Beled
-1379 58th Street
-Brooklyn, NY 11219
-Phone: (718) 436-8334
-Email: info@beledsynagogue.org`}</pre>
+                    <pre className="whitespace-pre-wrap text-sm font-mono">{'CONG. TIFERES YECHEZKEL OF BELED\n1379 58th Street\nBrooklyn, NY 11219\nPhone: (718) 436-8334\nEmail: info@beledsynagogue.org\nTax ID: 11-3090728\n\nTAX RECEIPT\n\nTransaction ID: ' + lastTransaction.id + '\nDate: ' + new Date(lastTransaction.date).toLocaleDateString() + '\nAmount: ">Transaction ID:</span>
+                        <span className="font-mono text-xs">{lastTransaction.id}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 + lastTransaction.amount.toLocaleString() + '\nDonor: ' + lastTransaction.memberName + '\nEmail: ' + (lastTransaction.memberEmail || 'Not provided') + '\nPhone: ' + (lastTransaction.memberPhone || 'Not provided') + '\nExpense: ' + lastTransaction.expenseName + '\nMonth: ' + lastTransaction.monthName + ' ' + lastTransaction.year + '\n' + (lastTransaction.dedication ? 'Dedication: ' + lastTransaction.dedication + '\n' : '') + (lastTransaction.message ? 'Message: ' + lastTransaction.message + '\n' : '') + 'Recurring: ' + (lastTransaction.recurring ? 'Yes' : 'No') + '\n\nThis donation is tax-deductible to the full extent allowed by law.\n\nThank you for your generous support!'}</pre>
                   </div>
                   
                   <div className="flex gap-3">
                     <button
                       onClick={() => {
-                        const receiptText = `CONG. TIFERES YECHEZKEL OF BELED - Tax Receipt
-
-Transaction ID: ${lastTransaction.id}
-Date: ${new Date(lastTransaction.date).toLocaleDateString()}
-Amount: $${lastTransaction.amount.toLocaleString()}
-Donor: ${lastTransaction.memberName}
-Email: ${lastTransaction.memberEmail || 'Not provided'}
-Phone: ${lastTransaction.memberPhone || 'Not provided'}
-Expense: ${lastTransaction.expenseName}
-Month: ${lastTransaction.monthName} ${lastTransaction.year}
-${lastTransaction.dedication ? `Dedication: ${lastTransaction.dedication}` : ''}
-${lastTransaction.message ? `Message: ${lastTransaction.message}` : ''}
-Recurring: ${lastTransaction.recurring ? 'Yes' : 'No'}
-
-This donation is tax-deductible to the full extent allowed by law.
-Tax ID: 11-3090728
-
-Thank you for your generous support!
-
-Cong. Tiferes Yechezkel of Beled
-1379 58th Street
-Brooklyn, NY 11219
-Phone: (718) 436-8334
-Email: info@beledsynagogue.org`;
+                        const receiptText = 'CONG. TIFERES YECHEZKEL OF BELED\n1379 58th Street\nBrooklyn, NY 11219\nPhone: (718) 436-8334\nEmail: info@beledsynagogue.org\nTax ID: 11-3090728\n\nTAX RECEIPT\n\nTransaction ID: ' + lastTransaction.id + '\nDate: ' + new Date(lastTransaction.date).toLocaleDateString() + '\nAmount: ">Transaction ID:</span>
+                        <span className="font-mono text-xs">{lastTransaction.id}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600 + lastTransaction.amount.toLocaleString() + '\nDonor: ' + lastTransaction.memberName + '\nEmail: ' + (lastTransaction.memberEmail || 'Not provided') + '\nPhone: ' + (lastTransaction.memberPhone || 'Not provided') + '\nExpense: ' + lastTransaction.expenseName + '\nMonth: ' + lastTransaction.monthName + ' ' + lastTransaction.year + '\n' + (lastTransaction.dedication ? 'Dedication: ' + lastTransaction.dedication + '\n' : '') + (lastTransaction.message ? 'Message: ' + lastTransaction.message + '\n' : '') + 'Recurring: ' + (lastTransaction.recurring ? 'Yes' : 'No') + '\n\nThis donation is tax-deductible to the full extent allowed by law.\n\nThank you for your generous support!';
 
                         const textArea = document.createElement('textarea');
                         textArea.value = receiptText;
@@ -651,11 +732,21 @@ Email: info@beledsynagogue.org`;
                     {(() => {
                       const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
                       const progress = getMonthProgress(expense, selectedSponsorship.month);
+                      const isSpecialMonth = expense.hasSpecialMonths && expense.specialMonths && 
+                                           expense.specialMonths.includes(selectedSponsorship.month);
                       return (
                         <div>
-                          <p className="text-gray-600">
-                            Monthly cost: ${progress.expenseAmount.toLocaleString()}
-                          </p>
+                          <div className="flex items-center gap-2">
+                            {getMonthIcon(expense, selectedSponsorship.month)}
+                            <p className="text-gray-600">
+                              Monthly cost: ${progress.expenseAmount.toLocaleString()}
+                            </p>
+                          </div>
+                          {isSpecialMonth && (
+                            <p className="text-orange-600 text-sm mt-1">
+                              This is a $YT month with special costs
+                            </p>
+                          )}
                           {progress.total > 0 && (
                             <div className="mt-2">
                               <p className="text-sm text-gray-600">
@@ -672,15 +763,29 @@ Email: info@beledsynagogue.org`;
                   </div>
                   
                   <div className="space-y-4">
-                    <div>
+                    <div className="relative">
                       <label className="block text-sm font-medium mb-1">Your Name *</label>
                       <input
                         type="text"
                         value={memberInfo.name}
-                        onChange={(e) => setMemberInfo(prev => ({ ...prev, name: e.target.value }))}
+                        onChange={(e) => handleNameChange(e.target.value)}
                         className="w-full border rounded-lg px-3 py-2"
                         placeholder="Enter your name"
                       />
+                      {showUserSuggestions && (
+                        <div className="absolute z-10 w-full bg-white border border-gray-200 rounded-lg mt-1 shadow-lg">
+                          {userSuggestions.map((user, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => selectUser(user)}
+                              className="w-full text-left px-3 py-2 hover:bg-gray-100 border-b border-gray-100 last:border-b-0"
+                            >
+                              <div className="font-medium">{user.name}</div>
+                              <div className="text-sm text-gray-600">{user.email}</div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     
                     <div>
@@ -690,10 +795,28 @@ Email: info@beledsynagogue.org`;
                         value={memberInfo.amount}
                         onChange={(e) => setMemberInfo(prev => ({ ...prev, amount: e.target.value }))}
                         className="w-full border rounded-lg px-3 py-2"
+                        style={{
+                          MozAppearance: 'textfield'
+                        }}
+                        onWheel={(e) => e.target.blur()}
                         placeholder="Enter amount"
                         min="0.01"
                         step="0.01"
                       />
+                      <style jsx>{`
+                        input[type="number"]::-webkit-outer-spin-button,
+                        input[type="number"]::-webkit-inner-spin-button {
+                          -webkit-appearance: none;
+                          margin: 0;
+                        }
+                      `}</style>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Up to full amount of ${(() => {
+                          const expense = expenses.find(e => e.id === selectedSponsorship.expenseId);
+                          const progress = getMonthProgress(expense, selectedSponsorship.month);
+                          return progress.remaining.toLocaleString();
+                        })()}
+                      </p>
                     </div>
                     
                     <div>
@@ -702,9 +825,13 @@ Email: info@beledsynagogue.org`;
                         type="email"
                         value={memberInfo.email}
                         onChange={(e) => setMemberInfo(prev => ({ ...prev, email: e.target.value }))}
-                        className="w-full border rounded-lg px-3 py-2"
+                        onBlur={(e) => handleFieldValidation('email', e.target.value)}
+                        className={'w-full border rounded-lg px-3 py-2 ' + (fieldErrors.email ? 'border-red-300 bg-red-50' : '')}
                         placeholder="your.email@example.com"
                       />
+                      {fieldErrors.email && (
+                        <p className="text-xs text-red-600 mt-1">{fieldErrors.email}</p>
+                      )}
                     </div>
                     
                     <div>
@@ -713,9 +840,13 @@ Email: info@beledsynagogue.org`;
                         type="tel"
                         value={memberInfo.phone}
                         onChange={(e) => setMemberInfo(prev => ({ ...prev, phone: e.target.value }))}
-                        className="w-full border rounded-lg px-3 py-2"
+                        onBlur={(e) => handleFieldValidation('phone', e.target.value)}
+                        className={'w-full border rounded-lg px-3 py-2 ' + (fieldErrors.phone ? 'border-red-300 bg-red-50' : '')}
                         placeholder="(555) 123-4567"
                       />
+                      {fieldErrors.phone && (
+                        <p className="text-xs text-red-600 mt-1">{fieldErrors.phone}</p>
+                      )}
                     </div>
                     
                     <div>
@@ -727,6 +858,7 @@ Email: info@beledsynagogue.org`;
                         className="w-full border rounded-lg px-3 py-2"
                         placeholder="In memory of... / In honor of..."
                       />
+                      <p className="text-xs text-gray-500 mt-1">This will be shown publicly</p>
                     </div>
                     
                     <div>
@@ -737,6 +869,7 @@ Email: info@beledsynagogue.org`;
                         className="w-full border rounded-lg px-3 py-2 h-20 resize-none"
                         placeholder="Add a personal message or note..."
                       />
+                      <p className="text-xs text-gray-500 mt-1">This will be visible when hovering over your sponsorship</p>
                     </div>
 
                     <div className="border-t pt-4 mt-4">
@@ -757,9 +890,18 @@ Email: info@beledsynagogue.org`;
                                 cardType: cardType
                               }));
                             }}
-                            className="w-full border rounded-lg px-3 py-2"
+                            onBlur={(e) => handleFieldValidation('cardNumber', e.target.value)}
+                            className={'w-full border rounded-lg px-3 py-2 ' + 
+                              (fieldErrors.cardNumber ? 'border-red-300 bg-red-50' : 
+                              memberInfo.cardNumber && memberInfo.cardType && 
+                              validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)
+                                ? 'border-green-300 bg-green-50'
+                                : '')}
                             placeholder="1234 5678 9012 3456"
                           />
+                          {fieldErrors.cardNumber && (
+                            <p className="text-xs text-red-600 mt-1">{fieldErrors.cardNumber}</p>
+                          )}
                         </div>
                         
                         <div className="grid grid-cols-2 gap-3">
@@ -778,10 +920,14 @@ Email: info@beledsynagogue.org`;
                                   setMemberInfo(prev => ({ ...prev, expiryDate: formattedValue }));
                                 }
                               }}
-                              className="w-full border rounded-lg px-3 py-2"
+                              onBlur={(e) => handleFieldValidation('expiryDate', e.target.value)}
+                              className={'w-full border rounded-lg px-3 py-2 ' + (fieldErrors.expiryDate ? 'border-red-300 bg-red-50' : '')}
                               placeholder="MM/YY"
                               maxLength="5"
                             />
+                            {fieldErrors.expiryDate && (
+                              <p className="text-xs text-red-600 mt-1">{fieldErrors.expiryDate}</p>
+                            )}
                           </div>
                           
                           <div>
@@ -795,10 +941,14 @@ Email: info@beledsynagogue.org`;
                                   setMemberInfo(prev => ({ ...prev, cvv: value }));
                                 }
                               }}
-                              className="w-full border rounded-lg px-3 py-2"
+                              onBlur={(e) => handleFieldValidation('cvv', e.target.value)}
+                              className={'w-full border rounded-lg px-3 py-2 ' + (fieldErrors.cvv ? 'border-red-300 bg-red-50' : '')}
                               placeholder="123"
                               maxLength="4"
                             />
+                            {fieldErrors.cvv && (
+                              <p className="text-xs text-red-600 mt-1">{fieldErrors.cvv}</p>
+                            )}
                           </div>
                         </div>
                         
@@ -834,7 +984,8 @@ Email: info@beledsynagogue.org`;
                       onClick={sponsorExpense}
                       disabled={!memberInfo.name?.trim() || !memberInfo.amount || parseFloat(memberInfo.amount) <= 0 || 
                                !memberInfo.cardNumber?.replace(/\s/g, '') || !memberInfo.expiryDate || 
-                               !memberInfo.cvv || !memberInfo.cardholderName?.trim()}
+                               !memberInfo.cvv || !memberInfo.cardholderName?.trim() ||
+                               !validateCardNumber(memberInfo.cardNumber, memberInfo.cardType)}
                       className="flex-1 bg-blue-600 text-white px-4 py-3 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed font-medium"
                     >
                       Process Payment & Confirm Sponsorship
@@ -844,8 +995,11 @@ Email: info@beledsynagogue.org`;
                         setShowSponsorForm(false);
                         setMemberInfo({ 
                           name: '', email: '', phone: '', dedication: '', message: '', recurring: true, amount: '',
-                          cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', cardType: ''
+                          cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
+                          billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment: false
                         });
+                        setFieldErrors({});
+                        setShowUserSuggestions(false);
                       }}
                       className="flex-1 bg-gray-300 text-gray-700 px-4 py-3 rounded-lg hover:bg-gray-400 font-medium"
                     >
@@ -911,10 +1065,7 @@ Email: info@beledsynagogue.org`;
             <div className="space-y-4">
               <h3 className="text-lg font-bold">Current Expenses</h3>
               {expenses.map(expense => (
-                <div 
-                  key={expense.id} 
-                  className="bg-white border rounded-lg p-4"
-                >
+                <div key={expense.id} className="bg-white border rounded-lg p-4">
                   <div className="flex justify-between items-start">
                     <div>
                       <h4 className="font-semibold">{expense.name}</h4>
@@ -939,12 +1090,11 @@ Email: info@beledsynagogue.org`;
                       const progress = getMonthProgress(expense, index);
                       const isSponsored = sponsors.length > 0;
                       return (
-                        <div key={`${expense.id}-${month}-${index}`} className="relative">
-                          <div className={`p-2 rounded text-xs text-center min-h-[80px] ${
-                            isSponsored
+                        <div key={expense.id + '-' + month + '-' + index} className="relative">
+                          <div className={'p-2 rounded text-xs text-center min-h-[80px] ' + 
+                            (isSponsored
                               ? 'bg-green-100 text-green-800 border border-green-300' 
-                              : 'bg-gray-100 text-gray-600 border border-gray-200'
-                          }`}>
+                              : 'bg-gray-100 text-gray-600 border border-gray-200')}>
                             <div className="flex flex-col items-center gap-1 mb-2">
                               <span className="text-xs font-medium">{month}</span>
                             </div>
@@ -955,7 +1105,7 @@ Email: info@beledsynagogue.org`;
                               <div className="space-y-1 mt-1">
                                 <div className="text-xs font-bold">${progress.total}</div>
                                 {sponsors.slice(0, 2).map((sponsor, idx) => (
-                                  <div key={`${sponsor.id}-${idx}`} className="truncate text-xs font-medium">
+                                  <div key={sponsor.id + '-' + idx} className="truncate text-xs font-medium">
                                     {sponsor.memberName}
                                   </div>
                                 ))}
