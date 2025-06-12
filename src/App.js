@@ -1,5 +1,4 @@
-// FINAL DEPLOYABLE App.js converted from TSX
-// Includes all enhancements, properly parsed and validated for Netlify
+// Final FULL App.js from .tsx — all logic preserved
 import React, { useState, useRef, useEffect } from 'react';
 import { Calendar, DollarSign, User, Settings, Plus, Trash2, Edit3, Check, X, Snowflake, Sun, Flower, Leaf } from 'lucide-react';
 
@@ -7,7 +6,7 @@ const SynagogueExpenseApp = () => {
   const [currentView, setCurrentView] = useState('member');
   const [selectedYear, setSelectedYear] = useState(5785);
   const [expenses, setExpenses] = useState([
-    { id, name: 'Mortgage Payment', amount, description: 'Monthly mortgage payment\nFor full or partial sponsorship click the month and enter the amount of your choosing', isHighPriority},
+    { id, name: 'Mortgage Payment', amount, description: 'Monthly mortgage payment\nFor full or partial sponsorship click the month and enter the amount of your choosing', isHighPriority },
     { 
       id, 
       name: 'Electricity', 
@@ -18,7 +17,8 @@ const SynagogueExpenseApp = () => {
         winter,
         spring,
         summer,
-        fall}
+        fall
+      }
     },
     { 
       id, 
@@ -26,10 +26,11 @@ const SynagogueExpenseApp = () => {
       amount, 
       description: 'Professional cleaning twice weekly',
       hasSpecialMonths,
-      specialMonths: [0, 6],
+      specialMonths, 6],
       monthlyAmounts: {
         0,
-        6}
+        6
+      }
     },
     { id, name: 'Coffee & Kitchen Supplies', amount, description: 'Coffee, tea, and kitchen essentials' },
     { id, name: 'Security System', amount, description: 'Monthly security monitoring' },
@@ -44,7 +45,8 @@ const SynagogueExpenseApp = () => {
         winter,
         spring,
         summer,
-        fall}
+        fall
+      }
     }
   ]);
   
@@ -55,12 +57,13 @@ const SynagogueExpenseApp = () => {
   const [memberInfo, setMemberInfo] = useState({ 
     name: '', email: '', phone: '', dedication: '', message: '', recurring, amount: '',
     cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
-    billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment});
+    billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment
+  });
   const [showPaymentConfirmation, setShowPaymentConfirmation] = useState(false);
   const [lastTransaction, setLastTransaction] = useState(null);
   const [showReceiptText, setShowReceiptText] = useState(false);
   const [showSponsorForm, setShowSponsorForm] = useState(false);
-  const [selectedSponsorship, setSelectedSponsorship] = useState({ expenseId, month});
+  const [selectedSponsorship, setSelectedSponsorship] = useState({ expenseId, month });
   const [newlyAddedExpenseId, setNewlyAddedExpenseId] = useState(null);
   const [fieldErrors, setFieldErrors] = useState({});
   const [storedUsers, setStoredUsers] = useState([
@@ -81,7 +84,8 @@ const SynagogueExpenseApp = () => {
     winter,
     spring,
     summer,
-    fall};
+    fall
+  };
 
   const getCurrentHebrewMonth = () => {
     return 8; // Sivan
@@ -103,7 +107,7 @@ const SynagogueExpenseApp = () => {
     const percentage = totalExpenseForMonth > 0 ? (totalSponsoredForMonth / totalExpenseForMonth) * 100 ;
     
     return {
-      currentMonthName[currentMonth],
+      currentMonthName,
       totalExpenseForMonth,
       totalSponsoredForMonth,
       remainingForMonth.max(totalExpenseForMonth - totalSponsoredForMonth, 0),
@@ -116,18 +120,18 @@ const SynagogueExpenseApp = () => {
     if (/^4/.test(cleaned)) return 'visa';
     if (/^5[1-5]/.test(cleaned)) return 'mastercard';
     if (/^3[47]/.test(cleaned)) return 'amex';
-    if (/^6(?|5)/.test(cleaned)) return 'discover';
+    if (/^6(?)/.test(cleaned)) return 'discover';
     return '';
   };
 
   const validateCardNumber = (number, type) => {
     const cleaned = number.replace(/\s/g, '');
     switch (type) {
-      case 'visa'/^4\d{15}$/.test(cleaned);
-      case 'mastercard'/^5[1-5]\d{14}$/.test(cleaned);
-      case 'amex'/^3[47]\d{13}$/.test(cleaned);
-      case 'discover'/^6(?|5\d{2})\d{12}$/.test(cleaned);
-      defaultfalse;
+      case 'visa' /^4\d{15}$/.test(cleaned);
+      case 'mastercard' /^5[1-5]\d{14}$/.test(cleaned);
+      case 'amex' /^3[47]\d{13}$/.test(cleaned);
+      case 'discover' /^6(?\d{2})\d{12}$/.test(cleaned);
+      default false;
     }
   };
 
@@ -174,11 +178,11 @@ const SynagogueExpenseApp = () => {
       error = 'Please enter a valid ' + expectedLength + '-digit CVV';
     }
     
-    setFieldErrors(prev => ({ ...prev, [field]}));
+    setFieldErrors(prev => ({ ...prev, [field] }));
   };
 
   const handleNameChange = (value) => {
-    setMemberInfo(prev => ({ ...prev, name}));
+    setMemberInfo(prev => ({ ...prev, name }));
     
     if (value.length > 0) {
       const suggestions = storedUsers.filter(user => 
@@ -259,7 +263,7 @@ const SynagogueExpenseApp = () => {
     if (expense.isFlexible) {
       const season = getSeasonForMonth(monthIndex);
       const IconComponent = seasonalIcons[season];
-      return React.createElement(IconComponent, { size});
+      return React.createElement(IconComponent, { size });
     }
     
     return null;
@@ -303,13 +307,13 @@ const SynagogueExpenseApp = () => {
       const transactionId = 'TXN-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
       const transaction = {
         id,
-        dateDate().toISOString(),
+        date Date().toISOString(),
         memberName.name.trim(),
         memberEmail.email?.trim() || '',
         memberPhone.phone?.trim() || '',
         amount,
         expenseName.name,
-        monthName[selectedSponsorship.month],
+        monthName.month],
         year,
         dedication.dedication?.trim() || '',
         message.message?.trim() || '',
@@ -344,7 +348,7 @@ const SynagogueExpenseApp = () => {
       
       setShowSponsorForm(false);
       setShowPaymentConfirmation(true);
-      setSelectedSponsorship({ expenseId, month});
+      setSelectedSponsorship({ expenseId, month });
       
       // Store user info for future use
       const existingUserIndex = storedUsers.findIndex(user => 
@@ -361,7 +365,8 @@ const SynagogueExpenseApp = () => {
       setMemberInfo({ 
         name: '', email: '', phone: '', dedication: '', message: '', recurring, amount: '',
         cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
-        billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment});
+        billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment
+      });
       setFieldErrors({});
     }
   };
@@ -431,7 +436,7 @@ const SynagogueExpenseApp = () => {
                   
                   <div className="space-y-4">
                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-gray-600">Total Monthly Expenses:</span>
+                      <span className="text-gray-600">Total Monthly Expenses/span>
                       <span className="font-bold text-gray-800">${currentMonthData.totalExpenseForMonth.toLocaleString()}</span>
                     </div>
                     
@@ -481,7 +486,7 @@ const SynagogueExpenseApp = () => {
 
             <div className="flex flex-col sm-row justify-between items-start sm-center gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Select Year:</label>
+                <label className="block text-sm font-medium mb-2">Select Year/label>
                 <select 
                   value={selectedYear} 
                   onChange={(e) => setSelectedYear(parseInt(e.target.value))}
@@ -522,7 +527,7 @@ const SynagogueExpenseApp = () => {
                             return (
                               <div key={season} className="flex items-center gap-1 text-xs sm-sm bg-gray-100 px-2 py-1 rounded">
                                 <IconComponent size={12} />
-                                <span className="capitalize">{season}:</span>
+                                <span className="capitalize">{season}/span>
                                 <span className="font-semibold">${amount}</span>
                               </div>
                             );
@@ -541,7 +546,7 @@ const SynagogueExpenseApp = () => {
                       return (
                         <div key={expense.id + '-' + month + '-' + index} className="relative">
                           <button
-                            onClick={() => isFullySponsored ? null : (setSelectedSponsorship({ expenseId.id, month}), setShowSponsorForm(true))}
+                            onClick={() => isFullySponsored ? null : (setSelectedSponsorship({ expenseId.id, month }), setShowSponsorForm(true))}
                             className={'w-full p-2 sm-3 rounded text-xs font-medium transition-colors min-h-[100px] ' +
                               (isFullySponsored
                                 ? 'bg-green-100 text-green-800 border-2 border-green-300' 
@@ -608,29 +613,29 @@ const SynagogueExpenseApp = () => {
                   <div className="bg-gray-50 rounded-lg p-4 mb-6">
                     <div className="text-sm space-y-2">
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Amount:</span>
+                        <span className="text-gray-600">Amount/span>
                         <span className="font-bold">${lastTransaction.amount.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Expense:</span>
+                        <span className="text-gray-600">Expense/span>
                         <span>{lastTransaction.expenseName}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Month:</span>
+                        <span className="text-gray-600">Month/span>
                         <span>{lastTransaction.monthName} {lastTransaction.year}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Card:</span>
+                        <span className="text-gray-600">Card/span>
                         <span className="capitalize">{lastTransaction.cardType} ****{lastTransaction.lastFourDigits}</span>
                       </div>
                       {lastTransaction.dedication && (
                         <div className="flex justify-between">
-                          <span className="text-gray-600">Dedication:</span>
+                          <span className="text-gray-600">Dedication/span>
                           <span className="text-right">{lastTransaction.dedication}</span>
                         </div>
                       )}
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Recurring:</span>
+                        <span className="text-gray-600">Recurring/span>
                         <span>{lastTransaction.recurring ? 'Yes' : 'No'}</span>
                       </div>
                     </div>
@@ -673,7 +678,7 @@ const SynagogueExpenseApp = () => {
                   </div>
                   
                   <div className="bg-gray-50 rounded-lg p-4 mb-4">
-                    <pre className="whitespace-pre-wrap text-sm font-mono">{'CONG. TIFERES YECHEZKEL OF BELED\n1379 58th Street\nBrooklyn, NY 11219\nPhone: (718) 436-8334\nEmail@beledsynagogue.org\nTax ID-3090728\n\nTAX RECEIPT\n\nTransaction ID: ' + lastTransaction.id + '\nDate: ' + new Date(lastTransaction.date).toLocaleDateString() + '\nAmount: ">Transaction ID:</span>
+                    <pre className="whitespace-pre-wrap text-sm font-mono">{'CONG. TIFERES YECHEZKEL OF BELED\n1379 58th Street\nBrooklyn, NY 11219\nPhone: (718) 436-8334\nEmail@beledsynagogue.org\nTax ID-3090728\n\nTAX RECEIPT\n\nTransaction ID: ' + lastTransaction.id + '\nDate: ' + new Date(lastTransaction.date).toLocaleDateString() + '\nAmount: ">Transaction ID/span>
                         <span className="font-mono text-xs">{lastTransaction.id}</span>
                       </div>
                       <div className="flex justify-between">
@@ -683,7 +688,7 @@ const SynagogueExpenseApp = () => {
                   <div className="flex gap-3">
                     <button
                       onClick={() => {
-                        const receiptText = 'CONG. TIFERES YECHEZKEL OF BELED\n1379 58th Street\nBrooklyn, NY 11219\nPhone: (718) 436-8334\nEmail@beledsynagogue.org\nTax ID-3090728\n\nTAX RECEIPT\n\nTransaction ID: ' + lastTransaction.id + '\nDate: ' + new Date(lastTransaction.date).toLocaleDateString() + '\nAmount: ">Transaction ID:</span>
+                        const receiptText = 'CONG. TIFERES YECHEZKEL OF BELED\n1379 58th Street\nBrooklyn, NY 11219\nPhone: (718) 436-8334\nEmail@beledsynagogue.org\nTax ID-3090728\n\nTAX RECEIPT\n\nTransaction ID: ' + lastTransaction.id + '\nDate: ' + new Date(lastTransaction.date).toLocaleDateString() + '\nAmount: ">Transaction ID/span>
                         <span className="font-mono text-xs">{lastTransaction.id}</span>
                       </div>
                       <div className="flex justify-between">
@@ -878,7 +883,8 @@ const SynagogueExpenseApp = () => {
                               setMemberInfo(prev => ({ 
                                 ...prev, 
                                 cardNumber,
-                                cardType}));
+                                cardType
+                              }));
                             }}
                             onBlur={(e) => handleFieldValidation('cardNumber', e.target.value)}
                             className={'w-full border rounded-lg px-3 py-2 ' + 
@@ -906,7 +912,7 @@ const SynagogueExpenseApp = () => {
                                   formattedValue = value.slice(0, 2) + '/' + value.slice(2, 4);
                                 }
                                 if (formattedValue.length <= 5) {
-                                  setMemberInfo(prev => ({ ...prev, expiryDate}));
+                                  setMemberInfo(prev => ({ ...prev, expiryDate }));
                                 }
                               }}
                               onBlur={(e) => handleFieldValidation('expiryDate', e.target.value)}
@@ -927,7 +933,7 @@ const SynagogueExpenseApp = () => {
                               onChange={(e) => {
                                 const value = e.target.value.replace(/\D/g, '');
                                 if (value.length <= 4) {
-                                  setMemberInfo(prev => ({ ...prev, cvv}));
+                                  setMemberInfo(prev => ({ ...prev, cvv }));
                                 }
                               }}
                               onBlur={(e) => handleFieldValidation('cvv', e.target.value)}
@@ -985,7 +991,8 @@ const SynagogueExpenseApp = () => {
                         setMemberInfo({ 
                           name: '', email: '', phone: '', dedication: '', message: '', recurring, amount: '',
                           cardNumber: '', expiryDate: '', cvv: '', cardholderName: '', billingAddress: '', 
-                          billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment});
+                          billingCity: '', billingState: '', billingZip: '', cardType: '', savePayment
+                        });
                         setFieldErrors({});
                         setShowUserSuggestions(false);
                       }}
