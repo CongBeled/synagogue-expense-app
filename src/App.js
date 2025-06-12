@@ -80,13 +80,13 @@ const SynagogueExpenseApp = () => {
         if (expensesSnapshot.empty) {
           // Create default expenses
           const defaultExpenses = [
-            { name: 'Mortgage Payment', amount: 2500, description: 'Monthly mortgage payment for the synagogue building', isHighPriority: true, order: 1 },
-            { name: 'Electricity Bill', amount: 450, description: 'Monthly electricity for lighting, heating, and cooling', isHighPriority: false, order: 2 },
-            { name: 'Cleaning Services', amount: 300, description: 'Professional cleaning service for the sanctuary and social hall', isHighPriority: false, order: 3 },
-            { name: 'Coffee & Refreshments', amount: 150, description: 'Weekly coffee and light refreshments after services', isHighPriority: false, order: 4 },
+            { name: 'Mortgage Payment', amount: 1500, description: 'Monthly mortgage payment for the synagogue building', isHighPriority: true, order: 1 },
+            { name: 'Electricity Bill', amount: 600, description: 'Monthly electricity for lighting, heating, and cooling', isHighPriority: false, order: 2 },
+            { name: 'Cleaning Services', amount: 400, description: 'Professional cleaning service for the sanctuary and social hall', isHighPriority: false, order: 3 },
+            { name: 'Coffee & Refreshments', amount: 300, description: 'Weekly coffee and light refreshments after services', isHighPriority: false, order: 4 },
             { name: 'Security System', amount: 200, description: 'Monthly security monitoring and maintenance', isHighPriority: true, order: 5 },
-            { name: 'Landscaping', amount: 175, description: 'Monthly garden and grounds maintenance', isHighPriority: false, order: 6 },
-            { name: 'Gas Bill', amount: 125, description: 'Monthly natural gas for heating and kitchen', isHighPriority: false, order: 7 }
+            { name: 'Ner Tamid', amount: 175, description: 'Monthly garden and grounds maintenance', isHighPriority: false, order: 6 },
+            { name: 'Gas Bill', amount: 400, description: 'Monthly natural gas for heating and kitchen', isHighPriority: false, order: 7 }
           ];
           
           for (const expense of defaultExpenses) {
